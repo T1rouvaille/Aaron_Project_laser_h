@@ -44,14 +44,18 @@ key_t keys[] = {
 
 volatile uint8_t gLaserOn[3] = {0, 0, 0};
 volatile uint8_t g_lock_led_override = 0;   /* 锁定开关 HIGH 时 LED 强制关闭标志 */
+volatile uint8_t g_led_show_all = 0;        /* 重新锁定后 LED 全亮展示标志 */
 
 /* 锁定开关状态机状态 (提前定义, 供 key_handle_events 判断) */
 typedef enum {
     LOCK_ACTIVE = 0,   /* 正常工作: P407=LOW */
-    LOCK_WAIT_OFF,     /* P407=HIGH: 激光/LED 已关, 20s 倒计时中 */
+    LOCK_WAIT_OFF,     /* P407=HIGH: 激光/LED 已关, 5s 倒计时中 */
 } lock_sw_state_t;
 
 static lock_sw_state_t g_lock_sw_state = LOCK_ACTIVE;
+
+/* 重新锁定后 LED 全亮展示倒计时 (10ms tick), >0 表示展示中 */
+static uint16_t led_all_on_ticks_10ms = 0;
 
 const uint8_t key_count = sizeof(keys) / sizeof(keys[0]);
 /* ===== duty ===== */
@@ -718,6 +722,17 @@ void lock_sw_read(void)
     /* 后台恢复激光 (独立于状态机, 分步进行) */
     lock_restore_process();
 
+    /* LED 全亮展示倒计时: 重新锁定后先三颗全亮, 展示结束按电量刷新 */
+    if (led_all_on_ticks_10ms > 0U)
+    {
+        led_all_on_ticks_10ms--;
+        if (led_all_on_ticks_10ms == 0U)
+        {
+            g_led_show_all = 0;
+            battery_led_task();
+        }
+    }
+
     switch (g_lock_sw_state)
     {
     case LOCK_ACTIVE:
@@ -744,6 +759,8 @@ void lock_sw_read(void)
 
                 /* 关 LED */
                 g_lock_led_override = 1;
+                g_led_show_all = 0;         /* 取消任何未完成的全亮展示 */
+                led_all_on_ticks_10ms = 0;
                 led_set_pattern(LED_PATTERN_DEFAULT);
 
                 lock_off_ticks_10ms = 0;
@@ -770,9 +787,11 @@ void lock_sw_read(void)
                 /* 待恢复掩码: 快照非 0 用快照, 全 0 则默认开 H */
                 lock_restore_mask = (lock_saved_mask != 0U) ? lock_saved_mask : 0x01U;
 
-                /* 恢复 LED (立即按电池状态刷新) */
+                /* 恢复 LED: 先三颗全亮 (复现开机效果), 展示后按电量刷新 */
                 g_lock_led_override = 0;
-                battery_led_task();
+                g_led_show_all = 1;
+                led_set_pattern(LED_PATTERN_ALL_ON);
+                led_all_on_ticks_10ms = (LOCK_LED_ALL_ON_MS / 10U);
 
                 g_lock_sw_state = LOCK_ACTIVE;
             }
@@ -781,7 +800,7 @@ void lock_sw_read(void)
         {
             lock_low_confirm_count = 0;
 
-            /* 倒计时到 20s 才关机; 到点后停止累加, 避免重复上报/请求 */
+            /* 倒计时到 5s 才关机; 到点后停止累加, 避免重复上报/请求 */
             if (lock_off_ticks_10ms < LOCK_SUSPEND_TIMEOUT_TICKS)
             {
                 lock_off_ticks_10ms++;

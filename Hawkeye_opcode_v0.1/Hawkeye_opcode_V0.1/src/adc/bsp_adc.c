@@ -428,6 +428,13 @@ void battery_led_task(void)
         return;
     }
 
+    /* 重新锁定后的全亮展示期, 强制三颗全亮 */
+    if (g_led_show_all)
+    {
+        led_set_pattern(LED_PATTERN_ALL_ON);
+        return;
+    }
+
     switch (g_bat_state)
     {
         case BAT_STATE_FULL:     led_set_pattern(LED_PATTERN_ALL_ON);  break;

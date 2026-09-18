@@ -48,6 +48,7 @@ extern key_t keys[];
 extern const uint8_t key_count;
 extern volatile uint8_t gLaserOn[3];
 extern volatile uint8_t g_lock_led_override;   /* 锁定开关 HIGH 时 LED 强制关闭标志 */
+extern volatile uint8_t g_led_show_all;        /* 重新锁定后 LED 全亮展示标志 */
 void key_en_delay_task_1ms(void);
 /* API */
 void key_init(void);
