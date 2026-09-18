@@ -12,6 +12,7 @@
 #include "wdt/wdt.h"
 #include "hawkeye_config.h"
 #include "stats/bsp_stats.h"
+#include <laser_safety/laser_safety.h>
 
 /* ======================================================================
  *  HardFault Handler: 喂狗后软复位, 避免 WDT 粗暴复位导致 Data Flash 二次损坏
@@ -199,6 +200,11 @@ static void imu_calib_posture_task(void)
                 gLaserOn[0] = 1;
                 gLaserOn[1] = 0;
                 gLaserOn[2] = 0;
+                /* 校准结束恢复调光: H 重新标记合法开启建立期, 覆盖电流爬升;
+                 * V1/V2 清"曾经接通"标志 (关闭态, 防御性复位) */
+                laser_opening_set(0);
+                laser_was_connected_reset(1);
+                laser_was_connected_reset(2);
                 wdt_feed();
                 set_laser1_200k_intensity(LASER_IDLE_DUTY, TIMER_PIN);
                 set_laser2_200k_intensity(LASER_DEFAULT_DUTY, TIMER_PIN);

@@ -127,6 +127,14 @@
 #define LASER_HOTPLUG_CURRENT_MA    (40)    /* 电流低于此值(mA) 判插拔 */
 #define LASER_HOTPLUG_CONFIRM_COUNT (2U)   /* 连续确认次数, 防上电建立期误判 */
 
+/* 合法开启"电流建立期"覆盖的调光周期数 — 开启命令后前 N 个调光周期内的
+ * 电流建立视为合法, 用于区分"合法开启"与"带电插入"。
+ * laser_safety_hotplug_check() 每个调光周期递减 1, 减到 0 后若才检测到
+ * 电流建立(>= LASER_HOTPLUG_CURRENT_MA) 则判带电插入。
+ * 值越大对合法开启越宽容、对带电插入检测越迟钝; 建议略大于 H 通道从
+ * 开启到电流稳定超过 LASER_HOTPLUG_CURRENT_MA 的实际调光周期数。 */
+#define LASER_OPEN_ESTABLISH_CYCLES  (5U)
+
 /* 电流超限消抖确认次数 — laser_adjust_duty() 每轮调光调用一次
  *  连续 5 次超过限流才锁存恒流模式，防止上电暂态尖峰误触发 */
 #define CURRENT_LIMIT_CONFIRM_COUNT  (5U)

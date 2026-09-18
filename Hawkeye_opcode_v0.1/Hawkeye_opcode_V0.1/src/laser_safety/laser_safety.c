@@ -25,9 +25,6 @@ static bool laser_was_connected[3] = {false, false, false};
  * 每次激光调光周期调用递减 1, 减到 0 后若才检测到电流建立 → 判带电插。 */
 static uint8_t laser_opening_cnt[3] = {0, 0, 0};
 
-/* 合法开启建立期覆盖的调光周期数 (约 N × 采样周期) */
-#define LASER_OPEN_ESTABLISH_CYCLES  (3U)
-
 void laser_opening_set(uint8_t glaser_idx)
 {
     if (glaser_idx < 3)
