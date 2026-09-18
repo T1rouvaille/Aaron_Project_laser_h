@@ -1,0 +1,498 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="UTF-8">
+<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>
+<x:ExcelWorksheet><x:Name>POWCAL</x:Name><x:WorksheetOptions><x:Panes></x:Panes></x:WorksheetOptions></x:ExcelWorksheet>
+<x:ExcelWorksheet><x:Name>Ref Voltage</x:Name><x:WorksheetOptions><x:Panes></x:Panes></x:WorksheetOptions></x:ExcelWorksheet>
+<x:ExcelWorksheet><x:Name>IMU Calibration</x:Name><x:WorksheetOptions><x:Panes></x:Panes></x:WorksheetOptions></x:ExcelWorksheet>
+<x:ExcelWorksheet><x:Name>System Query</x:Name><x:WorksheetOptions><x:Panes></x:Panes></x:WorksheetOptions></x:ExcelWorksheet>
+<x:ExcelWorksheet><x:Name>Other Commands</x:Name><x:WorksheetOptions><x:Panes></x:Panes></x:WorksheetOptions></x:ExcelWorksheet>
+<x:ExcelWorksheet><x:Name>Channel Map</x:Name><x:WorksheetOptions><x:Panes></x:Panes></x:WorksheetOptions></x:ExcelWorksheet>
+<x:ExcelWorksheet><x:Name>POWCAL Flow</x:Name><x:WorksheetOptions><x:Panes></x:Panes></x:WorksheetOptions></x:ExcelWorksheet>
+<x:ExcelWorksheet><x:Name>LASER Ctrl</x:Name><x:WorksheetOptions><x:Panes></x:Panes></x:WorksheetOptions></x:ExcelWorksheet>
+</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+<style>
+table { border-collapse: collapse; }
+td, th { border: 1px solid #000000; padding: 5px 8px; font-size: 11pt; }
+th { background-color: #4472C4; color: #FFFFFF; font-weight: bold; text-align: center; }
+tr:nth-child(even) { background-color: #D9E2F3; }
+.section { background-color: #8FAADC; color: #FFFFFF; font-weight: bold; font-size: 12pt; text-align: center; }
+td.code { font-family: Consolas, monospace; background-color: #FFF2CC; }
+td.resp { font-family: Consolas, monospace; background-color: #E2EFDA; }
+td.warn { color: #C00000; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<!-- ==================== Sheet 1: POWCAL ==================== -->
+<h2>1. Optical Power Calibration (AT+POWCAL)</h2>
+<p><b>Function:</b> PC reads optical power meter → sends AT+POWCAL → MCU auto-adjusts reference voltage → loops until target reached</p>
+<table>
+<tr><th width="40">#</th><th width="280">Command (Send)</th><th width="280">Normal Response</th><th width="280">Error Response</th><th width="300">Description</th></tr>
+
+<tr><td colspan="5" class="section">1. Report Optical Power Reading</td></tr>
+<tr>
+  <td align="center">1.1</td>
+  <td class="code">AT+POWCAL=H,150</td>
+  <td class="resp">+POWCAL:H,ADJ,1550mV</td>
+  <td class="resp">+POWCAL:ERR,H,SAT,3300mV</td>
+  <td>Report H-channel power 1.50mW (value x100)<br>ADJ=adjusted, continue / DONE=reached target</td>
+</tr>
+<tr>
+  <td align="center">1.2</td>
+  <td class="code">AT+POWCAL=V1,100</td>
+  <td class="resp">+POWCAL:V1,ADJ,1200mV</td>
+  <td class="resp">+POWCAL:ERR,V1,LASER_OFF,0mV</td>
+  <td>Report V1-channel power 1.00mW<br>Note: Ensure laser is powered on first</td>
+</tr>
+<tr>
+  <td align="center">1.3</td>
+  <td class="code">AT+POWCAL=V2,85</td>
+  <td class="resp">+POWCAL:V2,DONE,980mV</td>
+  <td class="resp">+POWCAL:ERR,V2,PD_LOW,30mV</td>
+  <td>Report V2-channel power 0.85mW<br>DONE=error within +/-0.05mW, calibration complete</td>
+</tr>
+
+<tr><td colspan="5" class="section">2. Status &amp; Save</td></tr>
+<tr>
+  <td align="center">2.1</td>
+  <td class="code">AT+POWCAL=STATUS</td>
+  <td class="resp">+POWCAL:STATUS,H,ADJ,1550mV,target=200<br>+POWCAL:STATUS,V1,IDLE,0mV,target=100<br>+POWCAL:STATUS,V2,DONE,980mV,target=100</td>
+  <td align="center">—</td>
+  <td>Query all 3 channels calibration status</td>
+</tr>
+<tr>
+  <td align="center">2.2</td>
+  <td class="code">AT+POWCAL=SAVE</td>
+  <td class="resp">+POWCAL:SAVE,OK<br>+RESP:LOCKED</td>
+  <td class="resp">+POWCAL:SAVE,FAIL</td>
+  <td>Save calibration results to Flash<br>Auto-locks after success</td>
+</tr>
+
+<tr><td colspan="5" class="section">3. Stop Calibration</td></tr>
+<tr>
+  <td align="center">3.1</td>
+  <td class="code">AT+POWCAL=STOP,H</td>
+  <td class="resp">+POWCAL:STOP,H</td>
+  <td class="resp">+POWCAL:ERR,UNKNOWN CHANNEL</td>
+  <td>Stop H-channel calibration, reset to IDLE</td>
+</tr>
+<tr>
+  <td align="center">3.2</td>
+  <td class="code">AT+POWCAL=STOP</td>
+  <td class="resp">+POWCAL:STOP,ALL</td>
+  <td align="center">—</td>
+  <td>Stop all 3 channels calibration</td>
+</tr>
+
+<tr><td colspan="5" class="section">4. Status Code Reference</td></tr>
+<tr><th>Code</th><th>Response Prefix</th><th colspan="2">Meaning</th><th>Next Action</th></tr>
+<tr><td align="center">ADJ</td><td>+POWCAL</td><td colspan="2">Reference voltage adjusted, awaiting next measurement</td><td>Re-read power meter and send AT+POWCAL</td></tr>
+<tr><td align="center">DONE</td><td>+POWCAL</td><td colspan="2">Target reached, error within +/-0.05mW</td><td>Send AT+POWCAL=SAVE to save</td></tr>
+<tr><td align="center">SAT</td><td class="warn">+POWCAL:ERR</td><td colspan="2">Saturated, voltage at upper limit (3300mV) or lower limit (0mV)</td><td>Check laser/PD health</td></tr>
+<tr><td align="center">LASER_OFF</td><td class="warn">+POWCAL:ERR</td><td colspan="2">Laser not powered on, calibration rejected</td><td>Turn on the corresponding laser first</td></tr>
+<tr><td align="center">PD_LOW</td><td class="warn">+POWCAL:ERR</td><td colspan="2">Initial PD reading below 50mV, calibration rejected</td><td>Check PD sensor connection</td></tr>
+<tr><td align="center">NO_RESP</td><td class="warn">+POWCAL:ERR</td><td colspan="2">Voltage increased but optical power did not respond</td><td>Check laser diode / optical path</td></tr>
+</table>
+
+<br><br>
+
+<!-- ==================== Sheet 2: Reference Voltage Config ==================== -->
+<h2>2. Reference Voltage Configuration</h2>
+<p><b>Function:</b> Manually set the PD reference voltage for 3 laser channels (V2/H/V1) and lock/save</p>
+<table>
+<tr><th width="40">#</th><th width="260">Command (Send)</th><th width="260">Normal Response</th><th width="260">Error Response</th><th width="280">Description</th></tr>
+
+<tr><td colspan="5" class="section">1. Unlock &amp; Lock</td></tr>
+<tr>
+  <td align="center">1.1</td>
+  <td class="code">AT+UNLOCKCFG=123456</td>
+  <td class="resp">+RESP:UNLOCKED</td>
+  <td class="resp">+RESP:PASSWORD ERROR, PLEASE RETRY</td>
+  <td>Enter password to unlock configuration mode</td>
+</tr>
+<tr>
+  <td align="center">1.2</td>
+  <td class="code">AT+LOCKSTATE?</td>
+  <td class="resp">+RESP:LOCKED</td>
+  <td class="resp">+RESP:UNLOCKED</td>
+  <td>Query current lock state</td>
+</tr>
+
+<tr><td colspan="5" class="section">2. Set Reference Voltage (unlock required first)</td></tr>
+<tr>
+  <td align="center">2.1</td>
+  <td class="code">AT+SET_FRONT=1500</td>
+  <td class="resp">+RESP:OK</td>
+  <td class="resp">+RESP:PLEASE UNLOCK FIRST<br>+RESP:ERR</td>
+  <td>Set V2(FRONT) reference to 1500mV<br>Range: 0~3300mV</td>
+</tr>
+<tr>
+  <td align="center">2.2</td>
+  <td class="code">AT+SET_SIDE=1200</td>
+  <td class="resp">+RESP:OK</td>
+  <td class="resp">+RESP:PLEASE UNLOCK FIRST<br>+RESP:ERR</td>
+  <td>Set H(SIDE) reference to 1200mV<br>Range: 0~3300mV</td>
+</tr>
+<tr>
+  <td align="center">2.3</td>
+  <td class="code">AT+SET_HORIZ=1300</td>
+  <td class="resp">+RESP:OK</td>
+  <td class="resp">+RESP:PLEASE UNLOCK FIRST<br>+RESP:ERR</td>
+  <td>Set V1(HORIZ) reference to 1300mV<br>Range: 0~3300mV</td>
+</tr>
+
+<tr><td colspan="5" class="section">3. Query Reference Voltage</td></tr>
+<tr>
+  <td align="center">3.1</td>
+  <td class="code">AT+GET_FRONT?</td>
+  <td class="resp">+RESP:FRONT=1500mV</td>
+  <td align="center">—</td>
+  <td>Query V2(FRONT) current value</td>
+</tr>
+<tr>
+  <td align="center">3.2</td>
+  <td class="code">AT+GET_SIDE?</td>
+  <td class="resp">+RESP:SIDE=1200mV</td>
+  <td align="center">—</td>
+  <td>Query H(SIDE) current value</td>
+</tr>
+<tr>
+  <td align="center">3.3</td>
+  <td class="code">AT+GET_HORIZ?</td>
+  <td class="resp">+RESP:HORIZ=1300mV</td>
+  <td align="center">—</td>
+  <td>Query V1(HORIZ) current value</td>
+</tr>
+<tr>
+  <td align="center">3.4</td>
+  <td class="code">AT+GET_ALL</td>
+  <td class="resp">RESP:FRONT=1500mV<br>RESP:SIDE=1200mV<br>RESP:HORIZ=1300mV</td>
+  <td align="center">—</td>
+  <td>Query all 3 reference voltages at once</td>
+</tr>
+
+<tr><td colspan="5" class="section">4. Save &amp; Reset</td></tr>
+<tr>
+  <td align="center">4.1</td>
+  <td class="code">AT+SAVE</td>
+  <td class="resp">+RESP:SAVE OK</td>
+  <td class="resp">+RESP:PARAMETER NOT READY (NOT LOCKED)</td>
+  <td>Save reference voltage to Flash (locked state required)<br>Auto-locks after all 3 channels are set</td>
+</tr>
+<tr>
+  <td align="center">4.2</td>
+  <td class="code">AT+RESET</td>
+  <td class="resp">+RESP:RESET SUCCESS, FLASH ERASED</td>
+  <td class="resp">+RESP:PLEASE UNLOCK FIRST<br>+RESP:RESET FAILED</td>
+  <td>Clear RAM reference voltage and erase Flash<br>Unlock required first</td>
+</tr>
+</table>
+
+<br><br>
+
+<!-- ==================== Sheet 3: IMU Calibration ==================== -->
+<h2>3. IMU Calibration</h2>
+<p><b>Function:</b> IMU accelerometer zero-point calibration + angle mode switching</p>
+<table>
+<tr><th width="40">#</th><th width="260">Command (Send)</th><th width="260">Normal Response</th><th width="260">Error Response</th><th width="330">Description</th></tr>
+
+<tr><td colspan="5" class="section">1. IMU Zero-Point Calibration</td></tr>
+<tr>
+  <td align="center">1.1</td>
+  <td class="code">AT+CALIBRATION</td>
+  <td class="resp">+RESP:CALIBRATION START<br>...<br>+RESP:CALIB DONE X=xxx Y=xxx Z=xxx</td>
+  <td class="resp">+RESP:CALIBRATION FAIL</td>
+  <td>Start IMU accelerometer zero-point calibration<br>Auto-collects 32 samples (CALIBRATION_TRIALS)<br>Auto-saves to Flash on completion<br><b>Prerequisite: Device placed horizontally and stationary</b></td>
+</tr>
+<tr>
+  <td align="center">1.2</td>
+  <td class="code">AT+GETCALIBRATION</td>
+  <td class="resp">+RESP:CALIB X=50 Y=-30 Z=120</td>
+  <td class="resp">+RESP:NO CALIB DATA</td>
+  <td>Query stored IMU calibration offset values<br>X/Y/Z are accelerometer zero-point offsets</td>
+</tr>
+
+<tr><td colspan="5" class="section">2. Angle Mode Switching</td></tr>
+<tr>
+  <td align="center">2.1</td>
+  <td class="code">0</td>
+  <td class="resp">+RESP:ANGLE MODE SET 0~4deg</td>
+  <td align="center">—</td>
+  <td>Switch to 0-4 degree mode<br>Laser operates only within 0-4 deg range</td>
+</tr>
+<tr>
+  <td align="center">2.2</td>
+  <td class="code">4</td>
+  <td class="resp">+RESP:ANGLE MODE SET 4~10deg</td>
+  <td align="center">—</td>
+  <td>Switch to 4-10 degree mode<br>Laser operates within 4-10 deg range</td>
+</tr>
+<tr>
+  <td align="center">2.3</td>
+  <td class="code">10</td>
+  <td class="resp">+RESP:ANGLE MODE SET 10~90deg</td>
+  <td align="center">—</td>
+  <td>Switch to 10-90 degree mode<br>Laser operates within 10-90 deg range</td>
+</tr>
+<tr>
+  <td align="center">2.4</td>
+  <td class="code">90</td>
+  <td class="resp">+RESP:ANGLE MODE SET UNCAL</td>
+  <td align="center">—</td>
+  <td>Switch to uncalibrated mode (UNCAL)<br>Laser stays on regardless of angle</td>
+</tr>
+</table>
+
+<br><br>
+
+<!-- ==================== Sheet 4: System Query ==================== -->
+<h2>4. System Status Query</h2>
+<table>
+<tr><th width="40">#</th><th width="260">Command (Send)</th><th width="350">Response Example</th><th width="320">Description</th></tr>
+
+<tr><td colspan="4" class="section">1. All Information</td></tr>
+<tr>
+  <td align="center">1.1</td>
+  <td class="code">AT+GET_ALL_INFO</td>
+  <td class="resp">========== ALL FLASH INFO ==========<br>----- Device Info -----<br>  Project: Hawkeye<br>  HW Ver: x.x.x.x<br>  FW Ver: x.x.x.x<br>----- IMU Calibration -----<br>----- Reference Voltage -----<br>----- Power Off Log -----<br>----- Runtime Statistics -----</td>
+  <td>Query all device information at once<br>Includes: version/IMU calibration/reference voltage/power-off log/runtime stats</td>
+</tr>
+
+<tr><td colspan="4" class="section">2. Debug &amp; Maintenance</td></tr>
+<tr>
+  <td align="center">2.1</td>
+  <td class="code">AT+CLEAR_ALL_FLASH</td>
+  <td class="resp">+RESP:ALL FLASH CLEARED</td>
+  <td>Erase all Data Flash (unlock required)<br>WARNING: Destructive operation, clears all calibration/statistics data</td>
+</tr>
+</table>
+
+<br><br>
+
+<!-- ==================== Sheet 5: Other Commands ==================== -->
+<h2>5. Other Commands</h2>
+<table>
+<tr><th width="40">#</th><th width="260">Command (Send)</th><th width="260">Normal Response</th><th width="260">Error Response</th><th width="250">Description</th></tr>
+
+<tr><td colspan="5" class="section">Debug Print Toggle</td></tr>
+<tr>
+  <td align="center">1.1</td>
+  <td class="code">AT+PRINT=1</td>
+  <td class="resp">+RESP:PRINT ON</td>
+  <td class="resp">+RESP:ERR</td>
+  <td>Enable debug print output</td>
+</tr>
+<tr>
+  <td align="center">1.2</td>
+  <td class="code">AT+PRINT=0</td>
+  <td class="resp">+RESP:PRINT OFF</td>
+  <td class="resp">+RESP:ERR</td>
+  <td>Disable debug print output</td>
+</tr>
+</table>
+
+<br><br>
+<br><br>
+
+<!-- ==================== Sheet 8: Laser Serial Control ==================== -->
+<h2>8. Laser Serial Control (AT+LASER)</h2>
+<p><b>Function:</b> Turn individual laser channels ON/OFF via serial command, supporting sequential calibration workflow (H &#8594; V1 &#8594; V2, one at a time, then save all three)</p>
+<table>
+<tr><th width="40">#</th><th width="280">Command (Send)</th><th width="280">Normal Response</th><th width="280">Error Response</th><th width="300">Description</th></tr>
+
+<tr><td colspan="5" class="section">1. Single Channel Control</td></tr>
+<tr>
+  <td align="center">1.1</td>
+  <td class="code">AT+LASER=H,ON</td>
+  <td class="resp">+LASER:H,ON</td>
+  <td class="resp">+LASER:ERR,BUSY<br>+LASER:ERR,FORMAT</td>
+  <td>Turn ON H(SIDE) channel laser<br>If first channel: sets PWM, waits 10ms, then EN1_ON</td>
+</tr>
+<tr>
+  <td align="center">1.2</td>
+  <td class="code">AT+LASER=H,OFF</td>
+  <td class="resp">+LASER:H,OFF</td>
+  <td class="resp">+LASER:ERR,BUSY<br>+LASER:ERR,FORMAT</td>
+  <td>Turn OFF H(SIDE) channel laser<br>If last channel: EN1_OFF &rarr; wait 10ms &rarr; all PWM off</td>
+</tr>
+<tr>
+  <td align="center">1.3</td>
+  <td class="code">AT+LASER=V1,ON</td>
+  <td class="resp">+LASER:V1,ON</td>
+  <td class="resp">+LASER:ERR,BUSY</td>
+  <td>Turn ON V1(HORIZ) channel laser</td>
+</tr>
+<tr>
+  <td align="center">1.4</td>
+  <td class="code">AT+LASER=V1,OFF</td>
+  <td class="resp">+LASER:V1,OFF</td>
+  <td class="resp">+LASER:ERR,BUSY</td>
+  <td>Turn OFF V1(HORIZ) channel laser</td>
+</tr>
+<tr>
+  <td align="center">1.5</td>
+  <td class="code">AT+LASER=V2,ON</td>
+  <td class="resp">+LASER:V2,ON</td>
+  <td class="resp">+LASER:ERR,BUSY</td>
+  <td>Turn ON V2(FRONT) channel laser</td>
+</tr>
+<tr>
+  <td align="center">1.6</td>
+  <td class="code">AT+LASER=V2,OFF</td>
+  <td class="resp">+LASER:V2,OFF</td>
+  <td class="resp">+LASER:ERR,BUSY</td>
+  <td>Turn OFF V2(FRONT) channel laser</td>
+</tr>
+
+<tr><td colspan="5" class="section">2. All Channels Control (Atomic)</td></tr>
+<tr>
+  <td align="center">2.1</td>
+  <td class="code">AT+LASER=ALL,ON</td>
+  <td class="resp">+LASER:ALL,ON</td>
+  <td class="resp">+LASER:ERR,BUSY</td>
+  <td>Turn ON all 3 channels simultaneously<br>Atomic: sets all gLaserOn first, then configures PWM + MOS once</td>
+</tr>
+<tr>
+  <td align="center">2.2</td>
+  <td class="code">AT+LASER=ALL,OFF</td>
+  <td class="resp">+LASER:ALL,OFF</td>
+  <td class="resp">+LASER:ERR,BUSY</td>
+  <td>Turn OFF all 3 channels simultaneously<br>Atomic: EN1_OFF &rarr; 10ms &rarr; all PWM to 0</td>
+</tr>
+
+<tr><td colspan="5" class="section">3. Error Code Reference</td></tr>
+<tr><th width="120">Error</th><th>Response</th><th colspan="2">Meaning</th><th>Solution</th></tr>
+<tr><td align="center">BUSY</td><td class="resp">+LASER:ERR,BUSY</td><td colspan="2">MOS state machine is busy (during 10ms EN1 delay)</td><td>Retry after ~20ms</td></tr>
+<tr><td align="center">FORMAT</td><td class="resp">+LASER:ERR,FORMAT: ...</td><td colspan="2">Command format error, missing comma or wrong values</td><td>Use: AT+LASER=&lt;H|V1|V2|ALL&gt;,&lt;ON|OFF&gt;</td></tr>
+
+<tr><td colspan="5" class="section">4. MOS State Machine Behavior</td></tr>
+<tr><th colspan="2">Scenario</th><th>Action</th><th colspan="2">Timing</th></tr>
+<tr><td colspan="2">First laser ON (all were OFF)</td><td>Set all PWM carriers &rarr; wait 10ms &rarr; EN1_ON</td><td colspan="2">All carrier signals enabled together</td></tr>
+<tr><td colspan="2">Additional laser ON (others ON)</td><td>Set that channel's PWM to 60 duty immediately</td><td colspan="2">No delay (EN1 already enabled)</td></tr>
+<tr><td colspan="2">Not-last laser OFF</td><td>Set that channel's PWM to 20 duty (idle)</td><td colspan="2">No delay (other channels keep EN1 on)</td></tr>
+<tr><td colspan="2">Last laser OFF</td><td>EN1_OFF &rarr; wait 10ms &rarr; all PWM to 0</td><td colspan="2">Clean shutdown sequence</td></tr>
+
+<tr><td colspan="5" class="section">5. Sequential Calibration Workflow (PC-Side Script)</td></tr>
+<tr><td colspan="5" style="font-family:Consolas,monospace;background-color:#F2F2F2;padding:10px;">
+AT+LASER=ALL,OFF&nbsp;&nbsp;&nbsp;&nbsp;// Ensure clean initial state<br>
+AT+LASER=H,ON&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// Turn ON H only<br>
+AT+POWCAL=H,200&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// Calibrate H (repeat until DONE)<br>
+AT+LASER=H,OFF<br>
+AT+LASER=V1,ON&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// Turn ON V1 only<br>
+AT+POWCAL=V1,100&nbsp;&nbsp;&nbsp;// Calibrate V1<br>
+AT+LASER=V1,OFF<br>
+AT+LASER=V2,ON&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// Turn ON V2 only<br>
+AT+POWCAL=V2,100&nbsp;&nbsp;&nbsp;// Calibrate V2<br>
+AT+POWCAL=SAVE&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// Save all three to Flash<br>
+AT+LASER=V2,OFF
+</td></tr>
+</table>
+
+<!-- ==================== Sheet 6: Channel Map & Parameters ==================== -->
+<h2>6. Channel Mapping &amp; Calibration Parameters</h2>
+<p><b>UART Config:</b> SCI0, 115200bps, 8N1, RTS flow control</p>
+<table>
+<tr><th width="160">Parameter</th><th width="120">H (SIDE)</th><th width="120">V1 (HORIZ)</th><th width="120">V2 (FRONT)</th><th width="200">Note</th></tr>
+
+<tr><td colspan="5" class="section">Channel Mapping</td></tr>
+<tr><td>Channel Enum</td><td align="center">POWCAL_CH_H = 0</td><td align="center">POWCAL_CH_V1 = 1</td><td align="center">POWCAL_CH_V2 = 2</td><td>power_calibration.h</td></tr>
+<tr><td>AT Command Name</td><td align="center">H</td><td align="center">V1</td><td align="center">V2</td><td>Name used in commands</td></tr>
+<tr><td>gLaserOn Index</td><td align="center">[0]</td><td align="center">[1]</td><td align="center">[2]</td><td>Laser on/off state</td></tr>
+<tr><td>g_pd_avg Index</td><td align="center">[0] = pd_avg1</td><td align="center">[1] = pd_avg2</td><td align="center">[2] = pd_avg</td><td>PD average (mV)</td></tr>
+<tr><td>reference_voltage Variable</td><td align="center">reference_voltage1</td><td align="center">reference_voltage2</td><td align="center">reference_voltage</td><td>Reference voltage variable</td></tr>
+
+<tr><td colspan="5" class="section">Calibration Target (hawkeye_config.h)</td></tr>
+<tr><td>Target Power (x100)</td><td align="center">200 (2.00mW)</td><td align="center">100 (1.00mW)</td><td align="center">100 (1.00mW)</td><td>POWCAL_TARGET_H/V1/V2</td></tr>
+
+<tr><td colspan="5" class="section">Step Thresholds (x100, unit: 0.01mW)</td></tr>
+<tr><td>Large Step Threshold</td><td colspan="3" align="center">|error| &gt; 50 (0.50mW) → step 200mV</td><td>POWCAL_THRESH_LARGE</td></tr>
+<tr><td>Medium Step Threshold</td><td colspan="3" align="center">|error| &gt; 20 (0.20mW) → step 50mV</td><td>POWCAL_THRESH_MED</td></tr>
+<tr><td>Small Step Threshold</td><td colspan="3" align="center">|error| &gt; 5 (0.05mW) → step 10mV</td><td>POWCAL_THRESH_SMALL</td></tr>
+<tr><td>Done Condition</td><td colspan="3" align="center">|error| ≤ 5 (0.05mW) → DONE</td><td></td></tr>
+
+<tr><td colspan="5" class="section">Protection Parameters</td></tr>
+<tr><td>Voltage Upper Limit</td><td colspan="3" align="center">3300mV</td><td>POWCAL_VOLT_MAX_MV</td></tr>
+<tr><td>Voltage Lower Limit</td><td colspan="3" align="center">0mV</td><td>POWCAL_VOLT_MIN_MV</td></tr>
+<tr><td>PD Minimum Threshold</td><td colspan="3" align="center">50mV (calibration rejected below this)</td><td>POWCAL_PD_MIN_MV</td></tr>
+
+<tr><td colspan="5" class="section">IMU Calibration Parameters</td></tr>
+<tr><td>Sample Count</td><td colspan="3" align="center">32 samples</td><td>CALIBRATION_TRIALS</td></tr>
+<tr><td>Sample Interval</td><td colspan="3" align="center">10ms</td><td>SAMPLE_PERIOD_MS</td></tr>
+<tr><td>Angle Thresholds</td><td colspan="3">3.8 deg: 1085 | 4.0 deg: 1143 | 7.5 deg: 2139 | 10.0 deg: 2846</td><td>LIMIT_x_DEG (accelerometer raw values)</td></tr>
+</table>
+
+<br><br>
+
+<!-- ==================== Sheet 7: POWCAL Interaction Flow ==================== -->
+<h2>7. Optical Power Calibration — PC-Side Interaction Flow</h2>
+<p><b>Complete interaction sequence for H-channel (target 2.00mW), from start to finish:</b></p>
+
+<table>
+<tr><th width="60">Round</th><th width="340">PC Sends</th><th width="340">MCU Responds</th><th width="260">Description</th></tr>
+<tr><td colspan="4" class="section">Initial state: H-channel laser ON, PD=1500mV, power meter reads 0.50mW (too low)</td></tr>
+<tr>
+  <td align="center">1</td>
+  <td class="code">AT+POWCAL=H,50</td>
+  <td class="resp">+POWCAL:H,ADJ,1700mV</td>
+  <td>Power=50(0.50mW) &lt; target 200(2.00mW)<br>Error 150 &gt; large-step threshold 50 → +200mV</td>
+</tr>
+<tr>
+  <td align="center">2</td>
+  <td class="code">AT+POWCAL=H,110</td>
+  <td class="resp">+POWCAL:H,ADJ,1900mV</td>
+  <td>Power=110(1.10mW), error 90 &gt; 50 → +200mV</td>
+</tr>
+<tr>
+  <td align="center">3</td>
+  <td class="code">AT+POWCAL=H,165</td>
+  <td class="resp">+POWCAL:H,ADJ,1950mV</td>
+  <td>Power=165, error 35 &gt; 20 → +50mV (medium step)</td>
+</tr>
+<tr>
+  <td align="center">4</td>
+  <td class="code">AT+POWCAL=H,190</td>
+  <td class="resp">+POWCAL:H,ADJ,1960mV</td>
+  <td>Power=190, error 10 &gt; 5 → +10mV (small step)</td>
+</tr>
+<tr>
+  <td align="center">5</td>
+  <td class="code">AT+POWCAL=H,198</td>
+  <td class="resp">+POWCAL:H,DONE,1960mV</td>
+  <td>Power=198, error=2 ≤ 5 → DONE!</td>
+</tr>
+<tr><td colspan="4" class="section">Calibration complete, save results</td></tr>
+<tr>
+  <td align="center">6</td>
+  <td class="code">AT+POWCAL=SAVE</td>
+  <td class="resp">+POWCAL:SAVE,OK<br>+RESP:LOCKED</td>
+  <td>Save to Flash, auto-lock</td>
+</tr>
+</table>
+
+<p></p>
+<table>
+<tr><th width="30"></th><th width="420">PC-Side Recommended Pseudocode</th></tr>
+<tr>
+  <td></td>
+  <td style="font-family:Consolas,monospace;background-color:#F2F2F2;padding:10px;">
+while True:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;power = read_optical_power_meter()&nbsp;&nbsp;# Read optical power meter<br>
+&nbsp;&nbsp;&nbsp;&nbsp;uart.send(f"AT+POWCAL=H,{power}")<br>
+&nbsp;&nbsp;&nbsp;&nbsp;resp = uart.receive()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;if "DONE" in resp:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print("Calibration complete")<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break<br>
+&nbsp;&nbsp;&nbsp;&nbsp;elif "ERR" in resp:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print(f"Error: {resp}")<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break<br>
+&nbsp;&nbsp;&nbsp;&nbsp;elif "ADJ" in resp:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;wait_stable(200ms)&nbsp;&nbsp;# Wait for laser to stabilize<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;continue<br>
+  </td>
+</tr>
+</table>
+
+</body>
+</html>
