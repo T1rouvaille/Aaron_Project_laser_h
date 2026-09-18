@@ -5,6 +5,7 @@
 #include <SysTick/bsp_SysTick.h>
 #include "debug_uart/bsp_debug_uart.h"
 #include <agt/bsp_agt_timing.h>
+#include <laser_safety/laser_safety.h>
 #include "common_utils.h"
 #include <led/bsp_led.h>
 #include "stdbool.h"

@@ -220,9 +220,9 @@ uint16_t Read_ADC_Voltage_Value_NTC(void)
 /* ======================================================================
  *  上电预检测 — EN1 拉高前采样三路激光管电流/电压 (带电插拔保护)
  *  通道映射与 adc_callback 一致:
- *    V2(FRONT)=Laser1: PD=CH2,  LD1=CH0,  LD2=CH1,  电流系数 3.000
- *    H(SIDE)  =Laser2: PD=CH20, LD1=CH5,  LD2=CH6,  电流系数 3.000
- *    V1(HORIZ)=Laser3: PD=CH8,  LD1=CH19, LD2=CH7,  电流系数 3.001
+ *    V2(FRONT)=Laser1: PD=CH2,  LD1=CH0,  LD2=CH1,  电流系数 CURRENT_SENSE_GAIN_X1000
+ *    H(SIDE)  =Laser2: PD=CH20, LD1=CH5,  LD2=CH6,  电流系数 CURRENT_SENSE_GAIN_X1000
+ *    V1(HORIZ)=Laser3: PD=CH8,  LD1=CH19, LD2=CH7,  电流系数 CURRENT_SENSE_GAIN_X1000
  *
  *  非阻塞分步采样: 每次 1ms tick 调用一次, 每次只采一批(9通道), 不做软件延时。
  *  采满 PRE_EN1_SAMPLE_COUNT 批后打印一次, 并按三路电流是否超限返回:
@@ -282,14 +282,14 @@ pre_en1_result_t laser_pre_en1_detect_step(void)
     s_pd2 = 0; s_ld1_2 = 0; s_ld2_2 = 0;
     s_pd3 = 0; s_ld1_3 = 0; s_ld2_3 = 0;
 
-    /* 电流 mA: V2/H 系数 3.000, V1 系数 3.001 */
+    /* 电流 mA: 统一系数 CURRENT_SENSE_GAIN_X1000 (见 hawkeye_config.h) */
     int32_t d;
     d = (int32_t)ld1_1_mv - (int32_t)ld2_1_mv; if (d < 0) d = -d;
-    int32_t cur_v2 = (d * 3000) / 1000;
+    int32_t cur_v2 = (d * CURRENT_SENSE_GAIN_X1000) / 1000;
     d = (int32_t)ld1_2_mv - (int32_t)ld2_2_mv; if (d < 0) d = -d;
-    int32_t cur_h  = (d * 3000) / 1000;
+    int32_t cur_h  = (d * CURRENT_SENSE_GAIN_X1000) / 1000;
     d = (int32_t)ld1_3_mv - (int32_t)ld2_3_mv; if (d < 0) d = -d;
-    int32_t cur_v1 = (d * 3001) / 1000;
+    int32_t cur_v1 = (d * CURRENT_SENSE_GAIN_X1000) / 1000;
 
     /* 任一路电流超限 → 不拉 EN1 */
     bool over_limit = (cur_v2 > (int32_t)PRE_EN1_CURRENT_LIMIT_MA) ||

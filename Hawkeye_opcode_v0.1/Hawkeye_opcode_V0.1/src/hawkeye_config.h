@@ -115,6 +115,10 @@
 #define PD_FAULT_THRESHOLD      (40)       /* PD 低于此值判定激光管故障 */
 #define PD_ABNORMAL_THRESHOLD   (3200)      /* PD 误差超过此值跳过本次调节 */
 
+/* 电流采样换算系数 (x1000): 由采样电阻决定
+ *   current_mA = |ld1_avg - ld2_avg|(mV) × 系数 / 1000 */
+#define CURRENT_SENSE_GAIN_X1000    (3000)
+
 /* 带电插拔激光管检测 — 激光运行中 PD≈0 且电流低于阈值 → 判被拔掉, 异常关机
  * 区分: 故障(PD低但电流仍存在) vs 插拔(PD低且电流≈0断路) */
 #define LASER_HOTPLUG_CURRENT_MA    (40)    /* 电流低于此值(mA) 判插拔 */

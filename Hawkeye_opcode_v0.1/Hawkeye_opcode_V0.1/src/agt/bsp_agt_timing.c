@@ -12,6 +12,7 @@
 #include "r_gpt.h"
 #include "timer_pwm.h"
 #include "hawkeye_config.h"
+#include <laser_safety/laser_safety.h>
 #include <adc/bsp_adc.h>
 #include "wdt/wdt.h"
 #include <adc/bsp_adc.h>
@@ -56,51 +57,6 @@ static bool current_limiting[3] = {false, false, false};
 
 /* 电流超限消抖计数：连续 CURRENT_LIMIT_CONFIRM_COUNT 次才锁存，防止上电暂态尖峰误触发 */
 static uint8_t current_limit_count[3] = {0, 0, 0};
-
-/* 带电插拔消抖计数：连续 LASER_HOTPLUG_CONFIRM_COUNT 次 PD≈0 且电流过低才判插拔 */
-static uint8_t hotplug_confirm_count[3] = {0, 0, 0};
-
-/* "曾经接通"标志: 只要电流曾经正常流过(>= LASER_HOTPLUG_CURRENT_MA)即置位,
- * 用于区分"开机未接激光管(电流从未流过)"与"运行中被拔掉(电流从有到无)"。
- * 注意: 不要求 PD 正常, 因为 PD 采样异常(激光管故障)时电流仍可正常。
- * 索引 = laser_idx (L1=0 / L2=1 / L3=2)。 */
-bool laser_was_connected[3] = {false, false, false};
-
-/* "合法开启建立期"计数: 合法开启命令后前 N 个调光周期内的电流建立视为合法,
- * 用于区分"合法开启导致的电流建立"与"带电插入导致的电流建立"。
- * 每次 laser_adjust_duty 调用递减 1, 减到 0 后若才检测到电流建立 → 判带电插。
- * 索引 = laser_idx。 */
-static uint8_t laser_opening_cnt[3] = {0, 0, 0};
-
-/* 合法开启建立期覆盖的调光周期数 (约 N × 采样周期) */
-#define LASER_OPEN_ESTABLISH_CYCLES  (3U)
-
-/* 合法开启时标记建立期 (参数 glaser_idx = gLaserOn[] 索引, 0/1/2)。
- * 内部映射 gLaserOn 索引 → laser_idx: 0→1(L2), 1→2(L3), 2→0(L1)。 */
-void laser_opening_set(uint8_t glaser_idx)
-{
-    if (glaser_idx < 3)
-    {
-        int laser_idx = (glaser_idx + 1) % 3;
-        laser_opening_cnt[laser_idx]    = LASER_OPEN_ESTABLISH_CYCLES;
-        laser_was_connected[laser_idx]  = false;
-        hotplug_confirm_count[laser_idx] = 0;
-    }
-}
-
-/* 复位某通道的"曾经接通"标志 (激光关闭时调用), 同时清除建立期和消抖计数。
- * 参数 glaser_idx = gLaserOn[] 索引 (0/1/2)，
- * 内部映射 gLaserOn 索引 → laser_idx: 0→1(L2), 1→2(L3), 2→0(L1)。 */
-void laser_was_connected_reset(uint8_t glaser_idx)
-{
-    if (glaser_idx < 3)
-    {
-        int laser_idx = (glaser_idx + 1) % 3;
-        laser_was_connected[laser_idx] = false;
-        laser_opening_cnt[laser_idx]    = 0;
-        hotplug_confirm_count[laser_idx] = 0;
-    }
-}
 
 static int   last_duty_check[3]    = {0, 0, 0};  // 低温检测用：上次记录的duty值
 static int   last_pd_check[3]      = {0, 0, 0};  // 低温检测用：上次记录的PD值
@@ -247,51 +203,11 @@ void laser_adjust_duty(int avg_pd,
     else if (tag[0] == 'H')                  laser_idx = 1;
     else                                     laser_idx = 2;
 
-    /* 合法开启建立期递减: 每次调光周期递减 1 */
-    if (laser_opening_cnt[laser_idx] > 0)
-        laser_opening_cnt[laser_idx]--;
-
-    /* ===== 电流建立边沿检测 (区分合法开启 vs 带电插入) =====
-     * 电流从无(从未接通)到有(当前 >= 30mA), 且不在合法开启建立期内 → 带电插入关机 */
-    if (current_mA >= LASER_HOTPLUG_CURRENT_MA && !laser_was_connected[laser_idx])
-    {
-        if (laser_opening_cnt[laser_idx] == 0)
-            system_power_off_request(POWER_OFF_REASON_LASER_HOTPLUG);
-    }
-
-    /* ===== 激光管故障/带电插拔检测 =====
-     * 独立于参考电压, 未设置参考电压时也生效
-     * 故障:  PD 过低但电流仍存在 → 仅跳过调光
-     * 插拔:  PD 过低且电流≈0(断路), 且此前电流曾正常流过 → 连续确认后异常关机
-     *        ("曾经接通"标志区分开机未接管与运行中被拔掉) */
-    if (avg_pd < PD_FAULT_THRESHOLD)
-    {
-        if (current_mA < LASER_HOTPLUG_CURRENT_MA)
-        {
-            /* 只有"曾经接通"(电流曾正常)才判插拔; 开机就无管(电流从未流过)不误关机 */
-            if (laser_was_connected[laser_idx] &&
-                hotplug_confirm_count[laser_idx] < LASER_HOTPLUG_CONFIRM_COUNT)
-            {
-                hotplug_confirm_count[laser_idx]++;
-                if (hotplug_confirm_count[laser_idx] >= LASER_HOTPLUG_CONFIRM_COUNT)
-                    system_power_off_request(POWER_OFF_REASON_LASER_HOTPLUG);
-            }
-        }
-        else
-        {
-            /* 电流正常 → 管子确实接通 (PD 低属于激光管故障, 非插拔) */
-            hotplug_confirm_count[laser_idx] = 0;
-            laser_was_connected[laser_idx] = true;
-        }
+    /* ===== 带电插拔 / 激光管故障检测 (laser_safety 模块) =====
+     * 独立于参考电压, 未设置参考电压时也生效。
+     * SKIP = PD 过低(故障/拔出), 跳过本次调光。 */
+    if (laser_safety_hotplug_check(laser_idx, avg_pd, current_mA) == LASER_SAFETY_SKIP)
         return;
-    }
-
-    /* PD 正常: 清零插拔消抖计数, 防止残留 */
-    hotplug_confirm_count[laser_idx] = 0;
-
-    /* 电流正常 → 标记"曾经接通" */
-    if (current_mA >= LASER_HOTPLUG_CURRENT_MA)
-        laser_was_connected[laser_idx] = true;
 
     if (reference <= 0) return;
 
@@ -481,132 +397,7 @@ void laser_adjust_duty(int avg_pd,
     if (*duty > (uint32_t)duty_max) *duty = (uint32_t)duty_max;
     set_func(lt_scale_duty(*duty), (uint8_t)pin);
 }
-/*void laser_adjust_duty(int avg_pd,
-                       int reference,
-                       int *duty,
-                       int duty_max,
-                       int threshold,
-                       int step_div,
-                       laser_set_pwm_func_t set_func,
-                       uint32_t pin,
-                       const char *tag,
-                       int current_mA,
-                       int current_limit_mA)
-{
-    if (reference <= 0) return;
 
-    char msg[128];
-
-    int pd_error = avg_pd - reference;
-
-    if (abs(pd_error) > 2800)
-    {
-        sprintf(msg, "[%s] abnormal pd_error=%d, skip adjust\r\n", tag, pd_error);
-        uart9_send_blocking(msg);
-        return;
-    }
-
-    int laser_idx = (tag[1] - '1');
-    if (laser_idx < 0 || laser_idx > 2) laser_idx = 0;
-
-    // ===== 电流硬限制（只做安全保护，不参与控制） =====
-    if (current_mA > current_limit_mA)
-    {
-        if (*duty > 0)
-        {
-            (*duty)--;
-            set_func((uint16_t)lt_scale_duty(*duty), pin);
-            sprintf(msg, "[%s] current limit! cur=%dmA limit=%dmA, duty forced -> %d\r\n",
-                        tag, current_mA, current_limit_mA, *duty);
-            uart9_send_blocking(msg);
-        }
-        // 重置PID积分，避免积分饱和后猛拉duty
-        laser_pid[laser_idx].integral   = 0;
-        laser_pid[laser_idx].last_error = pd_error;
-
-        // 冻结PID，不允许PID立即反向拉升
-        current_limit_freeze[laser_idx] = CURRENT_LIMIT_FREEZE_COUNT;
-        return;
-    }
-
-    // ===== 电流限制冻结期：等待系统稳定，PID暂停 =====
-    if (current_limit_freeze[laser_idx] > 0)
-    {
-        current_limit_freeze[laser_idx]--;
-        sprintf(msg, "[%s] current freeze, wait... %d\r\n",
-                tag, current_limit_freeze[laser_idx]);
-        uart9_send_blocking(msg);
-        return;
-    }
-
-    bool climbing = (abs(pd_error) > threshold);
-    pid_t *pid = &laser_pid[laser_idx];
-
-    // ===== 爬升阶段：纯比例快速追踪，不冻结 =====
-    if (climbing)
-    {
-        pid->integral   = 0;
-        pid->last_error = pd_error;
-
-        int p_out = pid->kp * pd_error;
-
-        int delta;
-        if      (p_out < -100) delta = +1;
-        else if (p_out >  100) delta = -1;
-        else                   delta =  0;
-
-        if (delta != 0)
-        {
-            *duty += delta;
-            if (*duty > duty_max) *duty = duty_max;
-            if (*duty < 0)        *duty = 0;
-            set_func((uint16_t)lt_scale_duty(*duty), pin);
-
-            sprintf(msg, "[%s] CLIMBING pd=%d ref=%d err=%d p_out=%d delta=%d duty=%d\r\n",
-                        tag, avg_pd, reference, pd_error, p_out, delta, *duty);
-            uart9_send_blocking(msg);
-        }
-        return;
-    }
-
-    // ===== 稳定阶段：完整PID（整数运算） =====
-
-    pid->integral += pd_error;
-    if (pid->integral >  pid->integral_limit) pid->integral =  pid->integral_limit;
-    if (pid->integral < -pid->integral_limit) pid->integral = -pid->integral_limit;
-
-    int derivative  = pd_error - pid->last_error;
-    pid->last_error = pd_error;
-
-    int p_term = pid->kp * pd_error;
-    int i_term = pid->ki * pid->integral / 1000;
-    int d_term = pid->kd * derivative;
-    int output = p_term + i_term + d_term;
-
-    int delta;
-    if      (output < -300) delta = +1;
-    else if (output >  300) delta = -1;
-    else                    delta =  0;
-
-    if (delta == 0)
-    {
-        sprintf(msg, "[%s] STABLE pd=%d ref=%d err=%d P=%d I=%d D=%d out=%d duty=%d (no change)\r\n",
-                    tag, avg_pd, reference, pd_error,
-                    p_term, i_term, d_term, output, *duty);
-        uart9_send_blocking(msg);
-        return;
-    }
-
-    *duty += delta;
-    if (*duty > duty_max) *duty = duty_max;
-    if (*duty < 0)        *duty = 0;
-    set_func((uint16_t)lt_scale_duty(*duty), pin);
-
-    sprintf(msg, "[%s] STABLE pd=%d ref=%d err=%d P=%d I=%d D=%d out=%d delta=%d duty=%d\r\n",
-                tag, avg_pd, reference, pd_error,
-                p_term, i_term, d_term, output, delta, *duty);
-    uart9_send_blocking(msg);
-}*/
 void laser_main_loop_task(void)
 {
 
@@ -674,7 +465,7 @@ void laser_main_loop_task(void)
             /* 更新全局 PD 均值 → V2(FRONT) */
             g_pd_avg[2] = (uint16_t)pd_avg;
             int32_t voltage    = (int32_t)ld1_avg - (int32_t)ld2_avg;
-            int32_t current_mA = (abs(voltage) * 3000) / 1000;
+            int32_t current_mA = (abs(voltage) * CURRENT_SENSE_GAIN_X1000) / 1000;
 
             if (gLaserOn[2] != 0U)
                 {
@@ -718,7 +509,7 @@ void laser_main_loop_task(void)
             /* 更新全局 PD 均值 → H(SIDE) */
             g_pd_avg[0] = (uint16_t)pd_avg1;
             int32_t voltage1    = (int32_t)ld1_avg1 - (int32_t)ld2_avg1;
-            int32_t current_mA1 = (abs(voltage1) * 3000) / 1000;
+            int32_t current_mA1 = (abs(voltage1) * CURRENT_SENSE_GAIN_X1000) / 1000;
 
             if (gLaserOn[0] != 0U)
             {
@@ -762,7 +553,7 @@ void laser_main_loop_task(void)
             /* 更新全局 PD 均值 → V1(HORIZ) */
             g_pd_avg[1] = (uint16_t)pd_avg2;
             int32_t voltage2    = (int32_t)ld1_avg2 - (int32_t)ld2_avg2;
-            int32_t current_mA2 = (abs(voltage2) * 3001) / 1000;
+            int32_t current_mA2 = (abs(voltage2) * CURRENT_SENSE_GAIN_X1000) / 1000;
 
             if (gLaserOn[1] != 0U)
             {
@@ -899,72 +690,6 @@ void laser_mode_0_4deg(void)
     // 只在1ms和5ms这两个时刻设置
 }
 
-/* 修改后的 laser_mode_0_4deg() */
-/*void laser_mode_0_4deg(void)
-{
-    pwm_cycle_counter++;
-
-     //延时计数
-    if (sample_delay_active == true)
-    {
-        if (++sample_delay_cnt >= 3)
-        {
-            sample_delay_active = false;
-
-            // ✅ 关键修改:延时结束时设置采样请求
-            if (pwm_in_high_phase && !sampled_this_cycle)
-            {
-                adc_sample_request = true;
-            }
-        }
-    }
-
-    if (pwm_cycle_counter == 1)
-    {
-         //低电平阶段：50%
-        set_laser3_8470_intensity(2834, GPT_IO_PIN_GTIOCA);
-        set_laser1_8470_intensity(2834, GPT_IO_PIN_GTIOCA);
-        set_laser2_8470_intensity(2834, TIMER_PIN);
-
-        pwm_in_high_phase = 0;
-    }
-    else if (pwm_cycle_counter == 5)
-    {
-         //高电平阶段：100%
-        set_laser3_8470_intensity(6500, GPT_IO_PIN_GTIOCA);
-        set_laser1_8470_intensity(6500, GPT_IO_PIN_GTIOCA);
-        set_laser2_8470_intensity(6500, TIMER_PIN);
-
-        pwm_in_high_phase    = true;
-        sampled_this_cycle   = false;
-        sample_delay_cnt     = 0;
-        sample_delay_active  = true;
-        adc_sample_request   = false;  // 清除旧的请求
-    }
-    else if (pwm_cycle_counter >= 48)
-    {
-        pwm_cycle_counter = 0;
-        pwm_in_high_phase = 0;
-        adc_sample_request = false;  // 周期结束,清除请求
-    }
-
-     //200kHz控制
-    if (gLaserOn[0])
-        set_laser1_200k_intensity(duty00, TIMER_PIN);
-    else
-        set_laser1_200k_intensity(12, TIMER_PIN);
-
-    if (gLaserOn[1])
-        set_laser2_200k_intensity(duty11, TIMER_PIN);
-    else
-        set_laser2_200k_intensity(12, TIMER_PIN);
-
-    if (gLaserOn[2])
-        set_laser3_200k_intensity(duty22, GPT_IO_PIN_GTIOCA);
-    else
-        set_laser3_200k_intensity(12, GPT_IO_PIN_GTIOCA);
-
-}*/
 void laser_mode_4_10deg(void)
 {
 

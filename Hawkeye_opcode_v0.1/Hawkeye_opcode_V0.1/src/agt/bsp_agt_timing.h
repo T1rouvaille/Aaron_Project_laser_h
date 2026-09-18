@@ -46,21 +46,6 @@ void laser_adjust_duty(int avg_pd,
                        int current_mA,
                        int current_limit_mA);
 
-/* 带电插拔检测辅助: 复位某通道"曾经接通"标志 (激光关闭时调用)
- * 参数 glaser_idx = gLaserOn[] 索引 (0/1/2) */
-void laser_was_connected_reset(uint8_t glaser_idx);
-
-/* 带电插拔检测辅助: 合法开启时标记"建立期", 允许接下来几次调光周期内的电流建立
- * 参数 glaser_idx = gLaserOn[] 索引 (0/1/2) */
-void laser_opening_set(uint8_t glaser_idx);
-/*void laser_adjust_duty(int avg,
-                       int ref,
-                       int *duty,
-                       int max_duty,
-                       int threshold,
-                       int step_div,
-                       fsp_err_t (*set_func)(uint32_t, bsp_io_port_pin_t),
-                       bsp_io_port_pin_t pin);*/
 void laser_main_loop_task(void);
 void laser_mode_4_10deg_reset(void);
 void laser_mode_10_90deg_reset(void);
