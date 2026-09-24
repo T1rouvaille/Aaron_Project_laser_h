@@ -32,7 +32,7 @@ typedef enum {
 typedef enum {
     POWCAL_STAT_ADJ = 0,        /* 已调整，等待下次测量 */
     POWCAL_STAT_DONE,           /* 到位, power>=target 且误差在+0.05mW内 */
-    POWCAL_STAT_SAT,            /* 饱和，已达电压上限 */
+    POWCAL_STAT_SAT,            /* 饱和：已达电压上限 / 电流到限但功率仍偏低 */
     POWCAL_STAT_IDLE,           /* 空闲，未启动校准 */
     POWCAL_STAT_LASER_OFF,      /* 保护: 激光未打开 */
     POWCAL_STAT_PD_LOW,         /* 保护: PD 初始值过低 (<50mV) */

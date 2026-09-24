@@ -111,7 +111,10 @@ uint32_t duty22 = 60;
 volatile bool adc_sample_request = false;  // 采样请求标志
 
 /* ===== 全局 PD 均值，供光功率校准模块读取 ===== */
-volatile uint16_t g_pd_avg[3] = {0, 0, 0};  /* [0]=V2(FRONT) [1]=H(SIDE) [2]=V1(HORIZ) */
+volatile uint16_t g_pd_avg[3] = {0, 0, 0};  /* [0]=H(SIDE) [1]=V1(HORIZ) [2]=V2(FRONT) */
+
+/* ===== 全局电流均值 (mA)，索引与 g_pd_avg 一致: [0]=H(SIDE) [1]=V1(HORIZ) [2]=V2(FRONT) ===== */
+volatile int32_t g_current_mA[3] = {0, 0, 0};
 
 void GPT_Timing_Init(void)
 {
@@ -398,6 +401,16 @@ void laser_adjust_duty(int avg_pd,
     set_func(lt_scale_duty(*duty), (uint8_t)pin);
 }
 
+/* ======================================================================
+ *  查询接口: 某通道是否已锁存恒流模式 (供光功率校准判断电流到限)
+ *  laser_idx: 0=V2(FRONT) 1=H(SIDE) 2=V1(HORIZ)
+ * ====================================================================== */
+bool laser_is_current_limiting(int laser_idx)
+{
+    if (laser_idx < 0 || laser_idx >= 3) return false;
+    return current_limiting[laser_idx];
+}
+
 void laser_main_loop_task(void)
 {
 
@@ -446,6 +459,15 @@ void laser_main_loop_task(void)
         wdt_feed();  /* PID调光前喂狗 */
         ready_to_adjust = false;
 
+        /* 打印分频: 每 PRINT_INTERVAL_CYCLES 个调光周期才打印一次 */
+        static uint32_t print_cycle_count = 0;
+        bool print_now = false;
+        if (++print_cycle_count >= PRINT_INTERVAL_CYCLES)
+        {
+            print_cycle_count = 0;
+            print_now = true;
+        }
+
         char msg[80];
 
         // -------- 激光1 --------
@@ -466,10 +488,11 @@ void laser_main_loop_task(void)
             g_pd_avg[2] = (uint16_t)pd_avg;
             int32_t voltage    = (int32_t)ld1_avg - (int32_t)ld2_avg;
             int32_t current_mA = (abs(voltage) * CURRENT_SENSE_GAIN_X1000) / 1000;
+            g_current_mA[2] = current_mA;
 
             if (gLaserOn[2] != 0U)
                 {
-                    if (g_print_enabled)
+                    if (g_print_enabled && print_now)
                     {
                         sprintf(msg, "PD-V2=%lu\r\n", pd_avg);
                         uart9_send_blocking(msg);
@@ -510,10 +533,11 @@ void laser_main_loop_task(void)
             g_pd_avg[0] = (uint16_t)pd_avg1;
             int32_t voltage1    = (int32_t)ld1_avg1 - (int32_t)ld2_avg1;
             int32_t current_mA1 = (abs(voltage1) * CURRENT_SENSE_GAIN_X1000) / 1000;
+            g_current_mA[0] = current_mA1;
 
             if (gLaserOn[0] != 0U)
             {
-                if (g_print_enabled)
+                if (g_print_enabled && print_now)
                 {
                     sprintf(msg, "PD-H=%lu\r\n", pd_avg1);
                     uart9_send_blocking(msg);
@@ -554,10 +578,11 @@ void laser_main_loop_task(void)
             g_pd_avg[1] = (uint16_t)pd_avg2;
             int32_t voltage2    = (int32_t)ld1_avg2 - (int32_t)ld2_avg2;
             int32_t current_mA2 = (abs(voltage2) * CURRENT_SENSE_GAIN_X1000) / 1000;
+            g_current_mA[1] = current_mA2;
 
             if (gLaserOn[1] != 0U)
             {
-                if (g_print_enabled)
+                if (g_print_enabled && print_now)
                 {
                     sprintf(msg, "PD-V1=%lu\r\n", pd_avg2);
                     uart9_send_blocking(msg);

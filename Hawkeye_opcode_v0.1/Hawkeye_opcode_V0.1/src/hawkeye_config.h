@@ -37,12 +37,12 @@
 
 /* 电池电压阈值 (ADC 原始值，非 mV)
  * 换算公式: mV = adc * 3300 * 48 / 5 / 4095 */
-#define BAT_HIGH_MV             (2464U)     /* 19.2V: FULL→HIGH 边界 */
-#define BAT_MID_MV              (2299U)     /* 17.9V: HIGH→MID  边界 */
-#define BAT_LOW_MV              (1819U)     /* 14.5V: MID →关断  边界 */
+#define BAT_HIGH_MV             (2470U)     /* 19.2V: FULL→HIGH 边界 */
+#define BAT_MID_MV              (2306U)     /* 17.9V: HIGH→MID  边界 */
+#define BAT_LOW_MV              (1826U)     /* 14.5V: MID →关断  边界 */
 
 /** 开机最低电压阈值 (ADC 原始值) */
-#define BAT_BOOT_MIN_ADC        (1825U)
+#define BAT_BOOT_MIN_ADC        (1835U)
 
 
 /** 电池状态迟滞量 (ADC 原始值) */
@@ -160,6 +160,10 @@
 #define CFG_PASSWORD            "123456"    /* AT 指令配置解锁密码 */
 #define UART_MSG_BUF_SIZE       (64U)       /* UART 消息格式化缓冲区 */
 
+/* 激光调试打印分频 (AT+PRINT=1): 每 N 个调光周期打印一次。
+ *  调光周期 ≈ 240ms (0-4°/10-90°稳定段), N=40 → 约 9.6s 打印一次 */
+#define PRINT_INTERVAL_CYCLES   (41U)
+
 /* ======================================================================
  *  IMU (IIM42351) 参数
  * ====================================================================== */
@@ -222,12 +226,14 @@
 /* 步进阈值 (x100, 单位 0.01mW) */
 #define POWCAL_THRESH_LARGE     50      /* |差值| > 0.50mW → 大步进 */
 #define POWCAL_THRESH_MED       20      /* |差值| > 0.20mW → 中步进 */
+#define POWCAL_THRESH_FINE      10      /* |差值| > 0.10mW → 小步进 */
 #define POWCAL_THRESH_SMALL     10      /* 正误差阈值: 0.10mW, power>=target 且 power-target<=此值 → 到位 */
 
 /* 步进电压值 (mV) */
 #define POWCAL_STEP_LARGE_MV    200     /* 大步进电压 */
 #define POWCAL_STEP_MED_MV      100     /* 中步进电压 */
 #define POWCAL_STEP_SMALL_MV    50      /* 小步进电压 */
+#define POWCAL_STEP_FINE_MV     30      /* 微步进电压 */
 
 /* 参考电压限幅 */
 #define POWCAL_VOLT_MAX_MV      3300    /* 参考电压上限 */

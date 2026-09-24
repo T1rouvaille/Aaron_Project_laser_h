@@ -26,6 +26,7 @@ static volatile uint8_t rx_buffer[RX_BUFFER_SIZE];
 #define MAX_REF 3
 volatile bool g_print_enabled = false;
 extern uint32_t duty11;
+extern volatile int32_t g_current_mA[3];  /* [0]=H [1]=V1 [2]=V2, 单位 mA */
 
 static volatile bool uart_send_complete_flag = true;
 static volatile bool new_data_ready = false;
@@ -601,7 +602,17 @@ void Debug_UART9_ProcessReceivedData(void)
            }
            wdt_feed();
            if (flash_clear_all() == FSP_SUCCESS)
+           {
+               /* Flash 擦除后同步清零 RAM 参考电压, 避免关机延时期间
+                * 仍按旧参考电压做 PID 调光 */
+               reference_voltage  = 0;
+               reference_voltage1 = 0;
+               reference_voltage2 = 0;
+               cfg.front_ok = false;
+               cfg.side_ok  = false;
+               cfg.horiz_ok = false;
                uart9_send_blocking("+RESP:ALL FLASH CLEARED\r\n");
+           }
            else
                uart9_send_blocking("+RESP:CLEAR FAIL\r\n");
            break;
@@ -803,12 +814,12 @@ void Debug_UART9_ProcessReceivedData(void)
          *    AT+POWCAL=STATUS            查询校准状态
          *
          *  响应:
-         *    +POWCAL:<CH>,ADJ,<ref_mV>      已调整，需再次测量
-         *    +POWCAL:<CH>,DONE,<ref_mV>     到位，目标达成
-         *    +POWCAL:<CH>,SAT,<ref_mV>      饱和，已达电压上/下限
-         *    +POWCAL:<CH>,LASER_OFF,<ref>   保护: 激光未打开
-         *    +POWCAL:<CH>,PD_LOW,<ref>      保护: PD 初始值过低
-         *    +POWCAL:<CH>,NO_RESP,<ref>     保护: 升压无响应
+         *    +POWCAL:<CH>,ADJ,<ref_mV>,<cur_mA>       已调整，需再次测量
+         *    +POWCAL:<CH>,DONE,<ref_mV>,<cur_mA>      到位，目标达成
+         *    +POWCAL:ERR,<CH>,SAT,<ref_mV>,<cur_mA>   饱和：电压上限/电流到限
+         *    +POWCAL:ERR,<CH>,LASER_OFF,<ref>,<cur>   保护: 激光未打开
+         *    +POWCAL:ERR,<CH>,PD_LOW,<ref>,<cur>      保护: PD 初始值过低
+         *    +POWCAL:ERR,<CH>,NO_RESP,<ref>,<cur>     保护: 升压无响应
          *    +POWCAL:STOP,<CH>              已停止
          *    +POWCAL:SAVE,OK                保存成功
          *    +POWCAL:SAVE,FAIL              保存失败
@@ -942,8 +953,9 @@ void Debug_UART9_ProcessReceivedData(void)
                 if (result == POWCAL_STAT_ADJ || result == POWCAL_STAT_DONE)
                 {
                     const char *state_str = (result == POWCAL_STAT_ADJ) ? "ADJ" : "DONE";
-                    snprintf(msg, sizeof(msg), "+POWCAL:%s,%s,%dmV\r\n",
-                             powcal_ch_names[ch], state_str, ref);
+                    snprintf(msg, sizeof(msg), "+POWCAL:%s,%s,%dmV,%ldmA\r\n",
+                             powcal_ch_names[ch], state_str, ref,
+                             (long)g_current_mA[ch]);
                 }
                 else
                 {
@@ -951,8 +963,9 @@ void Debug_UART9_ProcessReceivedData(void)
                         (result == POWCAL_STAT_SAT)       ? "SAT"  :
                         (result == POWCAL_STAT_LASER_OFF) ? "LASER_OFF" :
                         (result == POWCAL_STAT_PD_LOW)    ? "PD_LOW" : "NO_RESP";
-                    snprintf(msg, sizeof(msg), "+POWCAL:ERR,%s,%s,%dmV\r\n",
-                             powcal_ch_names[ch], err_str, ref);
+                    snprintf(msg, sizeof(msg), "+POWCAL:ERR,%s,%s,%dmV,%ldmA\r\n",
+                             powcal_ch_names[ch], err_str, ref,
+                             (long)g_current_mA[ch]);
                 }
                 uart9_send_blocking(msg);
             }

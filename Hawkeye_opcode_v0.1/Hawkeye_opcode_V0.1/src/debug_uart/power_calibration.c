@@ -13,8 +13,9 @@
  * 调压逻辑:
  *   error = target - measured_power (x100, 0.01mW)
  *   |error| > THRESH_LARGE (0.50mW) → 大步进 (200mV)
- *   |error| > THRESH_MED   (0.20mW) → 中步进 (50mV)
- *   |error| > THRESH_SMALL (0.05mW) → 小步进 (10mV)
+ *   |error| > THRESH_MED   (0.20mW) → 中步进 (100mV)
+ *   |error| > THRESH_FINE  (0.10mW) → 小步进 (50mV)
+ *   否则 (|error| ≤ 0.10mW)          → 微步进 (30mV)
  *   error ∈ [-THRESH_SMALL, 0]        → 到位 (仅允许正误差)
  */
 
@@ -67,6 +68,21 @@ static int get_laser_idx(powcal_channel_t ch)
 {
     /* H=gLaserOn[0], V1=gLaserOn[1], V2=gLaserOn[2] → 恰好 ch==idx */
     return (int)ch;
+}
+
+/* ======================================================================
+ *  ch → laser_idx 映射 (恒流锁存索引用)
+ *  与 laser_adjust_duty 内部 tag 映射一致:
+ *  V2(FRONT)=0, H(SIDE)=1, V1(HORIZ)=2
+ * ====================================================================== */
+static int get_current_limit_idx(powcal_channel_t ch)
+{
+    switch (ch) {
+        case POWCAL_CH_H:  return 1;  /* H  → laser_idx 1 */
+        case POWCAL_CH_V1: return 2;  /* V1 → laser_idx 2 */
+        case POWCAL_CH_V2: return 0;  /* V2 → laser_idx 0 */
+        default:           return -1;
+    }
 }
 
 /* ======================================================================
@@ -140,6 +156,20 @@ powcal_status_t powcal_process(powcal_channel_t ch, int power)
         return POWCAL_STAT_DONE;
     }
 
+    /* ==================================================================
+     *  保护: 电流已到限但光功率仍偏低 → 无法再升压，判饱和
+     *  （工装读数偏小时，避免持续升压到电流上限卡死"降不下来"）
+     * ================================================================== */
+    if (error > 0)
+    {
+        int lidx = get_current_limit_idx(ch);
+        if (lidx >= 0 && laser_is_current_limiting(lidx))
+        {
+            powcal_state[ch] = POWCAL_STAT_SAT;
+            return POWCAL_STAT_SAT;
+        }
+    }
+
     int abs_err = (error >= 0) ? error : -error;
 
     /* ===== 计算步进电压 (mV) ===== */
@@ -147,9 +177,11 @@ powcal_status_t powcal_process(powcal_channel_t ch, int power)
     if (abs_err > POWCAL_THRESH_LARGE) {
         step_mv = POWCAL_STEP_LARGE_MV;     /* 200mV */
     } else if (abs_err > POWCAL_THRESH_MED) {
-        step_mv = POWCAL_STEP_MED_MV;       /* 50mV */
+        step_mv = POWCAL_STEP_MED_MV;       /* 100mV */
+    } else if (abs_err > POWCAL_THRESH_FINE) {
+        step_mv = POWCAL_STEP_SMALL_MV;     /* 50mV */
     } else {
-        step_mv = POWCAL_STEP_SMALL_MV;     /* 10mV */
+        step_mv = POWCAL_STEP_FINE_MV;      /* 30mV */
     }
 
     /* ===== 调整参考电压 ===== */

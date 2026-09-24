@@ -29,6 +29,13 @@ extern volatile uint32_t pwm_cycle_counter;
 /* 索引: [0]=H(SIDE) [1]=V1(HORIZ) [2]=V2(FRONT) */
 extern volatile uint16_t g_pd_avg[3];
 
+/* 全局电流均值 (mA)，索引与 g_pd_avg 一致: [0]=H [1]=V1 [2]=V2 */
+extern volatile int32_t g_current_mA[3];
+
+/* 查询某通道是否已锁存恒流模式 (laser_idx: 0=V2, 1=H, 2=V1)
+ * 供光功率校准判断"电流已到限"使用 */
+bool laser_is_current_limiting(int laser_idx);
+
 void GPT_Timing_Init(void);
 void laser_pwm_tick_isr(void);
 
