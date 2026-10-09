@@ -168,15 +168,16 @@
  *  IMU (IIM42351) 参数
  * ====================================================================== */
 #define CALIBRATION_TRIALS      (32)       /* 校准采样次数 */
+#define IMU_WARMUP_DISCARD      (10U)      /* 上电预热丢弃前 N 次采样, 等待 MEMS 稳定 */
 
 /** 角度阈值 (加速度计原始值) */
-#define LIMIT_3_8_DEG           (1085)      /* 3.8° 阈值 */
-#define LIMIT_4_DEG             (1143)      /* 4.0° 阈值 */
+#define LIMIT_3_8_DEG           (1068)      /* 3.8° 阈值 */
+#define LIMIT_4_DEG             (1125)      /* 4.0° 阈值 */
 #define LIMIT_7_5_DEG           (2139)      /* 7.5° 阈值 */
 #define LIMIT_10_DEG            (2846)      /* 10.0° 阈值 */
 
 /** 姿态模式切换防抖阈值 — 需连续 N 次一致才切换 */
-#define MODE_CHANGE_THRESHOLD   (4U)
+#define MODE_CHANGE_THRESHOLD   (2U)
 
 /* ======================================================================
  *  Flash 存储参数

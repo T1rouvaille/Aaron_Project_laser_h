@@ -163,6 +163,17 @@ static void ntc_temp_protection_task(uint16_t ntc_adc)
 /** IMU 校准 + 姿态更新 */
 static void imu_calib_posture_task(void)
 {
+    /* 上电预热: 丢弃前 N 次采样, 等待 MEMS 传感器稳定输出。
+     * 期间空读一次, 既加速传感器进入稳态, 又避免把启动阶段的抖动
+     * 采进校准偏移或姿态判定。 */
+    static uint16_t warmup_discard = IMU_WARMUP_DISCARD;
+    if (warmup_discard > 0U)
+    {
+        warmup_discard--;
+        (void)imu_get_acc(acc);
+        return;
+    }
+
     if (g_calib_request)
     {
         /* 首次进入校准 → 打开所有激光开始闪烁 */

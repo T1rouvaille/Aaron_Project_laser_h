@@ -51,7 +51,7 @@ volatile angle_mode_t gAngleMode = ANGLE_MODE_0_4;
 
 /* LSM6DSOTR CTRL1_XL 配置位 */
 #define LSM6DSO_ODR_12_5HZ       0x10   /* 12.5 Hz (与 IIM42351 低频一致) */
-#define LSM6DSO_ODR_104HZ        0x40   /* 104 Hz  (最接近 IIM42351 100Hz) */
+#define LSM6DSO_ODR_52HZ         0x30   /* 52 Hz  (最接近 IIM42351 50Hz) */
 #define LSM6DSO_FS_XL_2G         0x00   /* ±2g */
 
 /* LSM6DSOTR CTRL3_C 配置: 使能 BDU (Block Data Update) */
@@ -179,7 +179,7 @@ static int8_t imu_chip_init(uint8_t highSampleRate, uint8_t who_am_i)
     /* 配置加速度 ODR + 2g FS */
     uint8_t data = IIM423XX_ACCEL_CONFIG0_FS_SEL_2g;
     if (highSampleRate)
-        data |= IIM423XX_ACCEL_CONFIG0_ODR_100_HZ;
+        data |= IIM423XX_ACCEL_CONFIG0_ODR_50_HZ;
     else
         data |= IIM423XX_ACCEL_CONFIG0_ODR_12_5_HZ;
 
@@ -241,7 +241,7 @@ static int8_t lsm6dsotr_chip_init(uint8_t highSampleRate)
     /* ===== 配置 CTRL1_XL: ODR + ±2g FS ===== */
     uint8_t data = LSM6DSO_FS_XL_2G;
     if (highSampleRate)
-        data |= LSM6DSO_ODR_104HZ;    /* 104 Hz ≈ IIM42351 的 100 Hz */
+        data |= LSM6DSO_ODR_52HZ;    /* 52 Hz ≈ IIM42351 的 50 Hz */
     else
         data |= LSM6DSO_ODR_12_5HZ;   /* 12.5 Hz (与 IIM42351 一致) */
 
