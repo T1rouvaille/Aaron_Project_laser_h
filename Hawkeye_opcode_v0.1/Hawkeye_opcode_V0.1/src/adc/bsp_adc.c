@@ -341,21 +341,22 @@ void battery_temp_check(void)
 
     if (th == 0) return;  /* 防止除零 */
 
+    /* NTC 没接检测: th < 60 说明 NTC 悬空/未接, 也关机保护 */
+    if (th < 60)
+    {
+        system_overheat_request(OVERHEAT_SOURCE_BATTERY);
+        return;
+    }
+
     /* NTC 电阻计算 (电池 → NTC → TH → R_fixed=8.25k → GND)
      * R_ntc(kΩ) = 15.49 × VBATT / TH - 8.25
      * 定点数 ×100: R_x100 = 1549 × VBATT / TH - 825 (单位 0.01kΩ) */
     int32_t r_x100 = (int32_t)4043 * (int32_t)vbatt / (int32_t)th - 2411;
 
-    /* 电池包过热保护: R_ntc < 0.65kΩ 或 0.75kΩ < R_ntc < 2.30kΩ 触发关机 */
-/*    {
-        char tmp[48];
-        snprintf(tmp, sizeof(tmp), "+DBG:BAT_NTC vbatt=%u th=%u R=%ld\r\n",
-                 vbatt, th, (long)r_x100);
-        uart9_send_blocking(tmp);
-    }*/
-    if ((r_x100 > 0 && r_x100 < 196))          //|| (r_x100 < 65))
+    /* 电池包过热保护: R_ntc < 3.00kΩ (r_x100 < 300) 触发关机 */
+    if (r_x100 > 0 && r_x100 < 300)
     {
-        //system_overheat_request(OVERHEAT_SOURCE_BATTERY);
+        system_overheat_request(OVERHEAT_SOURCE_BATTERY);
     }
 }
 
@@ -478,9 +479,6 @@ void system_power_off_with_reason(power_off_reason_t reason)
     flash_save_poweroff_and_stats((uint32_t)reason, stats_get_ptr());
 
     wdt_feed();
-    Batt_OFF;
-    Power_En_OFF;
-    wdt_feed();
     R_BSP_SoftwareDelay(10, BSP_DELAY_UNITS_MILLISECONDS);
     wdt_feed();
     set_laser1_200k_intensity(0, TIMER_PIN);
@@ -498,13 +496,12 @@ void system_power_off_with_reason(power_off_reason_t reason)
     wdt_feed();
     EN1_OFF;
 
-    //NVIC_SystemReset();
-
+    /* 关键: 不拉低电源、不喂狗, 让 WDT 超时产生 WDTRF 复位。
+     * Bootloader 检测到 WDTRF + SRAM 魔数后才会真正锁死断电;
+     * 若在此拉低电源, 会先触发 POR/LVD 复位(WDTRF 不置位),
+     * Bootloader 误判为"正常上电"而重新启动, 导致无限重启。 */
     while (1)
     {
-        Power_En_OFF;
-        Batt_OFF;
-        wdt_feed();
         __WFI();
     }
 }
