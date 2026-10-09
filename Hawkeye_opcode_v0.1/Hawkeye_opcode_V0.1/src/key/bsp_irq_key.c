@@ -757,6 +757,14 @@ void lock_sw_read(void)
                 /* 全关激光 (对应 AT+LASER=ALL,OFF) */
                 laser_serial_ctrl_all(false);
 
+                /* 关机记忆: laser_serial_ctrl_all(false) 内部已把 Flash 状态写成
+                 * 全关 0, 这里改回"松开前快照", 使重新上电能恢复关机前的三路状态 */
+                if (lock_saved_mask != 0U)
+                {
+                    flash_save_laser_state(lock_saved_mask);
+                    last_laser_mask = lock_saved_mask;
+                }
+
                 /* 关 LED */
                 g_lock_led_override = 1;
                 g_led_show_all = 0;         /* 取消任何未完成的全亮展示 */
