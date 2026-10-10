@@ -312,18 +312,40 @@ pre_en1_result_t laser_pre_en1_detect_step(void)
 volatile bool g_ntc_low_temp = false;
 
 /* ===== 电池包 NTC 温度检测 ===== */
-#define BAT_NTC_SAMPLE_CNT  (4U)    /* NTC计算累加次数 (4次=4秒) */
+#define BAT_NTC_SAMPLE_CNT  (4U)    /* NTC电阻计算累加次数 (4次=4秒) */
+#define BAT_NTC_OPEN_CONFIRM_COUNT  (3U)  /* th<100 开路连续确认次数 (1次/秒×3=3秒消抖) */
+#define BAT_NTC_TH_MAX_STEP  (300U) /* 平均TH相邻周期(4秒)允许最大升温(ADC raw), 超过视为采样异常 */
 
 static uint32_t g_bat_ntc_vbatt_acc = 0;   /* vbatt 累加器 */
 static uint32_t g_bat_ntc_th_acc    = 0;    /* th 累加器 */
 static uint8_t  g_bat_ntc_sample_cnt = 0;   /* 采样计数 */
+static uint8_t  g_bat_ntc_open_cnt   = 0;   /* th<100 开路确认计数 */
+static uint16_t g_bat_ntc_prev_th    = 0;   /* 上一次有效平均TH基准 */
+static bool     g_bat_ntc_th_valid   = false; /* 平均TH基准是否已建立 */
 
 void battery_temp_check(void)
 {
     uint16_t vbatt = (uint16_t)g_bat_adc_raw;
     uint16_t th    = (uint16_t)g_bat_battery_temp_raw;
 
-    /* 累加采样 */
+    /* 开路检测: 每秒判断当前 th, 连续 BAT_NTC_OPEN_CONFIRM_COUNT 次(秒)才关机,
+     * 避免瞬时开路/接触不良误触发 */
+    if (th > 0 && th < 100)
+    {
+        g_bat_ntc_open_cnt++;
+        if (g_bat_ntc_open_cnt >= BAT_NTC_OPEN_CONFIRM_COUNT)
+        {
+            g_bat_ntc_open_cnt = 0;
+            system_overheat_request(OVERHEAT_SOURCE_BATTERY);
+            return;
+        }
+    }
+    else
+    {
+        g_bat_ntc_open_cnt = 0;  /* 恢复正常, 清零确认计数 */
+    }
+
+    /* 累加采样 (用于电阻过热判断) */
     g_bat_ntc_vbatt_acc += vbatt;
     g_bat_ntc_th_acc    += th;
     g_bat_ntc_sample_cnt++;
@@ -341,12 +363,19 @@ void battery_temp_check(void)
 
     if (th == 0) return;  /* 防止除零 */
 
-    /* NTC 没接检测: th < 60 说明 NTC 悬空/未接, 也关机保护 */
-    if (th < 60)
+    /* 升温速率限制: 真实温度连续渐变, 平均TH不会在相邻周期(4秒)内突增。
+     * 若升温超过 BAT_NTC_TH_MAX_STEP, 判定为采样异常(引脚复用/噪声),
+     * 本次跳过过热判断; 基准仍跟随更新, 避免真实持续升温被永久屏蔽。 */
+    if (g_bat_ntc_th_valid)
     {
-        system_overheat_request(OVERHEAT_SOURCE_BATTERY);
-        return;
+        if ((int32_t)th > (int32_t)g_bat_ntc_prev_th + BAT_NTC_TH_MAX_STEP)
+        {
+            g_bat_ntc_prev_th = th;
+            return;
+        }
     }
+    g_bat_ntc_prev_th  = th;
+    g_bat_ntc_th_valid = true;
 
     /* NTC 电阻计算 (电池 → NTC → TH → R_fixed=8.25k → GND)
      * R_ntc(kΩ) = 15.49 × VBATT / TH - 8.25

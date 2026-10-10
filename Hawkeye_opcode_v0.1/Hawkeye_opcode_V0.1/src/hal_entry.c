@@ -388,28 +388,6 @@ void hal_entry(void)
         }
     }
 
-    /* 启动时 电池包NTC 过热检测 (单次, 无需多次平均) */
-    {
-        uint16_t vbatt = (uint16_t)g_bat_adc_raw;
-        uint16_t th    = (uint16_t)g_bat_battery_temp_raw;
-        if (th > 0)
-        {
-            /* NTC 没接检测: th < 60 说明 NTC 悬空/未接, 也关机保护 */
-            if (th < 60)
-            {
-                system_overheat_request(OVERHEAT_SOURCE_BATTERY);
-            }
-            else
-            {
-                int32_t r_x100 = (int32_t)4043 * (int32_t)vbatt / (int32_t)th - 2411;
-                if (r_x100 > 0 && r_x100 < 300)
-                {
-                    system_overheat_request(OVERHEAT_SOURCE_BATTERY);
-                }
-            }
-        }
-    }
-
     /* ==================================================================
      *  检测 UBOX 校准请求 flag
      *
