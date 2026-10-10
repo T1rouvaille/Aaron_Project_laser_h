@@ -170,6 +170,9 @@
 #define CALIBRATION_TRIALS      (32)       /* 校准采样次数 */
 #define IMU_WARMUP_DISCARD      (10U)      /* 上电预热丢弃前 N 次采样, 等待 MEMS 稳定 */
 
+/* Z 轴零偏额外补偿 (LSB): 在校准值 imu_offset[2] 基础上再减此值, 修正残留偏置 */
+#define IMU_Z_OFFSET_COMP       (40)
+
 /** 角度阈值 (加速度计原始值) */
 #define LIMIT_3_8_DEG           (1068)      /* 3.8° 阈值 */
 #define LIMIT_4_DEG             (1125)      /* 4.0° 阈值 */
