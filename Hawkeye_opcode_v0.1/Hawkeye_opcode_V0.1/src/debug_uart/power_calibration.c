@@ -86,6 +86,20 @@ static int get_current_limit_idx(powcal_channel_t ch)
 }
 
 /* ======================================================================
+ *  ch → 光功率校准电流饱和阈值 (mA)
+ *  独立于恒流保护 CURRENT_LIMIT_*_MA, H=310, V1/V2=240
+ * ====================================================================== */
+static int get_powcal_current_limit(powcal_channel_t ch)
+{
+    switch (ch) {
+        case POWCAL_CH_H:  return POWCAL_CURRENT_LIMIT_H_MA;
+        case POWCAL_CH_V1: return POWCAL_CURRENT_LIMIT_V1_MA;
+        case POWCAL_CH_V2: return POWCAL_CURRENT_LIMIT_V2_MA;
+        default:           return -1;
+    }
+}
+
+/* ======================================================================
  *  内部辅助 — 获取通道对应的参考电压指针
  * ====================================================================== */
 static int* get_ref_ptr(powcal_channel_t ch)
@@ -157,13 +171,20 @@ powcal_status_t powcal_process(powcal_channel_t ch, int power)
     }
 
     /* ==================================================================
-     *  保护: 电流已到限但光功率仍偏低 → 无法再升压，判饱和
-     *  （工装读数偏小时，避免持续升压到电流上限卡死"降不下来"）
+     *  保护: 电流达到光功率校准饱和阈值但光功率仍偏低 → 判饱和
+     *  阈值 POWCAL_CURRENT_LIMIT_*_MA (H=310, V1/V2=240) 独立于恒流保护
+     *  CURRENT_LIMIT_*_MA, 更早介入, 防止持续升压到恒流卡死。
+     *  同时保留恒流锁存判据 (laser_is_current_limiting) 作为兜底。
      * ================================================================== */
     if (error > 0)
     {
-        int lidx = get_current_limit_idx(ch);
-        if (lidx >= 0 && laser_is_current_limiting(lidx))
+        int  sat_limit        = get_powcal_current_limit(ch);
+        bool over_powcal_limit = (sat_limit > 0 && (int)g_current_mA[ch] >= sat_limit);
+
+        int  lidx           = get_current_limit_idx(ch);
+        bool over_hw_limit  = (lidx >= 0 && laser_is_current_limiting(lidx));
+
+        if (over_powcal_limit || over_hw_limit)
         {
             powcal_state[ch] = POWCAL_STAT_SAT;
             return POWCAL_STAT_SAT;

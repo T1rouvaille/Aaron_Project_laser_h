@@ -223,7 +223,7 @@
  *  通道: H(SIDE) / V1(HORIZ) / V2(FRONT)
  * ====================================================================== */
 /* 目标光功率 (x100, 单位 0.01mW) */
-#define POWCAL_TARGET_H         250     /* H  目标 2.50mW */
+#define POWCAL_TARGET_H         240     /* H  目标 2.50mW */
 #define POWCAL_TARGET_V1        120     /* V1 目标 1.20mW */
 #define POWCAL_TARGET_V2        120     /* V2 目标 1.20mW */
 
@@ -245,6 +245,13 @@
 
 /* 保护阈值 */
 #define POWCAL_PD_MIN_MV        30      /* PD 初始值低于此值禁止校准 */
+
+/* 光功率校准电流饱和阈值 (mA): 电流达到此值判饱和, 停止升压。
+ * 独立于恒流保护阈值 CURRENT_LIMIT_*_MA, 更早介入, 防止光功率上不去时恒流卡死。
+ * H=310, V1=V2=240 */
+#define POWCAL_CURRENT_LIMIT_H_MA    (310)
+#define POWCAL_CURRENT_LIMIT_V1_MA   (240)
+#define POWCAL_CURRENT_LIMIT_V2_MA   (240)
 
 /* ======================================================================
  *  sleep mode time

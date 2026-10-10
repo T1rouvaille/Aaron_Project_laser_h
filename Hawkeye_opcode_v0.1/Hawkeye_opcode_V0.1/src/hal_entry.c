@@ -261,7 +261,7 @@ static void imu_calib_posture_task(void)
             int16_t raw_z = acc[2];
 
             acc[1] -= imu_offset[1];
-            acc[2] -= (imu_offset[2] - IMU_Z_OFFSET_COMP);
+            acc[2] = (int16_t)(acc[2] - imu_offset[2] + IMU_Z_OFFSET_COMP);
             posture_update(acc);
 
             if (g_imu_debug_enabled)
