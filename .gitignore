@@ -1,0 +1,17 @@
+# e2 studio / Renesas FSP build outputs
+Debug/
+build/
+.cache/
+
+# Compiled artifacts
+*.o
+*.obj
+*.elf
+*.map
+*.hex
+*.bin
+*.srec
+*.sym
+*.list
+*.d
+*.a
