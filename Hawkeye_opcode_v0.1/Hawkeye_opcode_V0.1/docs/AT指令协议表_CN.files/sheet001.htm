@@ -1,0 +1,1182 @@
+<html xmlns:v="urn:schemas-microsoft-com:vml"
+xmlns:o="urn:schemas-microsoft-com:office:office"
+xmlns:x="urn:schemas-microsoft-com:office:excel"
+xmlns="http://www.w3.org/TR/REC-html40">
+
+<head>
+<meta http-equiv=Content-Type content="text/html; charset=utf-8">
+<meta name=ProgId content=Excel.Sheet>
+<meta name=Generator content="Microsoft Excel 15">
+<link id=Main-File rel=Main-File href="../AT指令协议表_CN.xls">
+<link rel=File-List href=filelist.xml>
+<link rel=Stylesheet href=stylesheet.css>
+<style>
+<!--td
+	{padding-bottom:5px;
+	padding-top:5px;}
+tr:nth-child(even) { background-color: #D9E2F3; }
+tr:nth-child(even) { background-color: #D9E2F3; }
+td
+	{padding-bottom:5px;
+	padding-top:5px;}
+tr:nth-child(even) { background-color: #D9E2F3; }
+tr:nth-child(even) { background-color: #D9E2F3; }
+table
+	{mso-displayed-decimal-separator:"\.";
+	mso-displayed-thousand-separator:"\,";}
+@page
+	{margin:1.0in .75in 1.0in .75in;
+	mso-header-margin:.5in;
+	mso-footer-margin:.5in;}
+ruby
+	{ruby-align:left;}
+rt
+	{color:windowtext;
+	font-size:9.0pt;
+	font-weight:400;
+	font-style:normal;
+	text-decoration:none;
+	font-family:等线;
+	mso-generic-font-family:auto;
+	mso-font-charset:134;
+	mso-char-type:none;
+	display:none;}
+-->
+</style>
+<![if !supportTabStrip]><script language="JavaScript">
+<!--
+function fnUpdateTabs()
+ {
+  if (parent.window.g_iIEVer>=4) {
+   if (parent.document.readyState=="complete"
+    && parent.frames['frTabs'].document.readyState=="complete")
+   parent.fnSetActiveSheet(0);
+  else
+   window.setTimeout("fnUpdateTabs();",150);
+ }
+}
+
+if (window.name!="frSheet")
+ window.location.replace("../AT指令协议表_CN.xls");
+else
+ fnUpdateTabs();
+//-->
+</script>
+<![endif]>
+</head>
+
+<body link="#0563C1" vlink="#954F72">
+<!-- ==================== Sheet 1: 光功率校准 ==================== -->
+
+<table border=0 cellpadding=0 cellspacing=0 width=1099 style='border-collapse:
+ collapse;table-layout:fixed;width:824pt'>
+ <col width=159 style='mso-width-source:userset;mso-width-alt:5660;width:119pt'>
+ <col width=172 style='mso-width-source:userset;mso-width-alt:6115;width:129pt'>
+ <col width=256 span=3 style='mso-width-source:userset;mso-width-alt:9102;
+ width:192pt'>
+ <tr height=30 style='height:22.8pt'>
+  <td height=30 class=xl65 colspan=3 width=587 style='height:22.8pt;mso-ignore:
+  colspan;width:440pt'>一、光功率校准 (AT+POWCAL)</td>
+  <td class=xl66 width=256 style='width:192pt'></td>
+  <td class=xl66 width=256 style='width:192pt'></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl67 colspan=4 style='height:13.8pt;mso-ignore:colspan'>功能：<font
+  class="font9">PC上位机读取光功率计 → 发AT+POWCAL → MCU自动调整参考电压 → 循环至目标光功率</font></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl66 style='height:14.4pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl68 width=159 style='height:14.4pt;width:119pt'>序号</td>
+  <td class=xl69 width=172 style='width:129pt'>发送命令</td>
+  <td class=xl69 width=256 style='width:192pt'>正常响应</td>
+  <td class=xl69 width=256 style='width:192pt'>错误响应</td>
+  <td class=xl69 width=256 style='width:192pt'>说明</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>1. 上报光功率读数</td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td rowspan=2 height=37 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:28.2pt;border-top:none;width:119pt'>1.1</td>
+  <td rowspan=2 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+POWCAL=H,150</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+POWCAL:H,ADJ,1550mV</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+POWCAL:ERR,H,SAT,3300mV</td>
+  <td class=xl70 width=256 style='width:192pt'>上报H通道光功率1.50mW(值x100)</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl71 width=256 style='height:14.4pt;width:192pt'>ADJ=已调整需继续
+  / DONE=到位</td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td rowspan=2 height=37 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:28.2pt;border-top:none;width:119pt'>1.2</td>
+  <td rowspan=2 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+POWCAL=V1,100</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+POWCAL:V1,ADJ,1200mV</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+POWCAL:ERR,V1,LASER_OFF,0mV</td>
+  <td class=xl70 width=256 style='width:192pt'>上报V1通道光功率1.00mW</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl71 width=256 style='height:14.4pt;width:192pt'>注意:
+  需先确保激光已开启</td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td rowspan=2 height=37 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:28.2pt;border-top:none;width:119pt'>1.3</td>
+  <td rowspan=2 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+POWCAL=V2,85</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+POWCAL:V2,DONE,980mV</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+POWCAL:ERR,V2,PD_LOW,30mV</td>
+  <td class=xl70 width=256 style='width:192pt'>上报V2通道光功率0.85mW</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl71 width=256 style='height:14.4pt;width:192pt'>DONE=误差在±0.05mW内,
+  校准完成</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>2. 状态与结果</td>
+ </tr>
+ <tr height=38 style='height:28.8pt'>
+  <td rowspan=3 height=115 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:87.0pt;border-top:none;width:119pt'>2.1</td>
+  <td rowspan=3 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+POWCAL=STATUS</td>
+  <td class=xl72 width=256 style='width:192pt'>+POWCAL:STATUS,H,ADJ,1550mV,target=200</td>
+  <td rowspan=3 class=xl86 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>—</td>
+  <td rowspan=3 class=xl94 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>查询全部三路校准状态</td>
+ </tr>
+ <tr height=38 style='height:28.8pt'>
+  <td height=38 class=xl72 width=256 style='height:28.8pt;width:192pt'>+POWCAL:STATUS,V1,IDLE,0mV,target=100</td>
+ </tr>
+ <tr height=39 style='height:29.4pt'>
+  <td height=39 class=xl73 width=256 style='height:29.4pt;width:192pt'>+POWCAL:STATUS,V2,DONE,980mV,target=100</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td rowspan=2 height=39 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:29.4pt;border-top:none;width:119pt'>2.2</td>
+  <td rowspan=2 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+POWCAL=SAVE</td>
+  <td class=xl72 width=256 style='width:192pt'>+POWCAL:SAVE,OK</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+POWCAL:SAVE,FAIL</td>
+  <td class=xl70 width=256 style='width:192pt'>保存校准结果到Flash</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl73 width=256 style='height:15.0pt;width:192pt'>+RESP:LOCKED</td>
+  <td class=xl71 width=256 style='width:192pt'>成功后自动锁定</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>3. 停止校准</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl74 width=159 style='height:15.0pt;width:119pt'>3.1</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+POWCAL=STOP,H</td>
+  <td class=xl73 width=256 style='width:192pt'>+POWCAL:STOP,H</td>
+  <td class=xl73 width=256 style='width:192pt'>+POWCAL:ERR,UNKNOWN CHANNEL</td>
+  <td class=xl71 width=256 style='width:192pt'>停止H通道校准, 重置为IDLE</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl74 width=159 style='height:15.0pt;width:119pt'>3.2</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+POWCAL=STOP</td>
+  <td class=xl73 width=256 style='width:192pt'>+POWCAL:STOP,ALL</td>
+  <td class=xl76 width=256 style='width:192pt'>—</td>
+  <td class=xl71 width=256 style='width:192pt'>停止全部三路校准</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>4. 状态码含义</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl77 width=159 style='height:14.4pt;width:119pt'>状态码</td>
+  <td class=xl78 width=172 style='width:129pt'>响应前缀</td>
+  <td colspan=2 class=xl95 width=512 style='border-right:1.0pt solid black;
+  border-left:none;width:384pt'>含义</td>
+  <td class=xl78 width=256 style='width:192pt'>后续操作</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl74 width=159 style='height:14.4pt;width:119pt'>ADJ</td>
+  <td class=xl71 width=172 style='width:129pt'>+POWCAL</td>
+  <td colspan=2 class=xl96 width=512 style='border-right:1.0pt solid black;
+  border-left:none;width:384pt'>已调整参考电压, 等待下次测量</td>
+  <td class=xl71 width=256 style='width:192pt'>继续读功率计并发AT+POWCAL</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl74 width=159 style='height:14.4pt;width:119pt'>DONE</td>
+  <td class=xl71 width=172 style='width:129pt'>+POWCAL</td>
+  <td colspan=2 class=xl96 width=512 style='border-right:1.0pt solid black;
+  border-left:none;width:384pt'>到位, 误差在±0.05mW内</td>
+  <td class=xl71 width=256 style='width:192pt'>可发AT+POWCAL=SAVE保存</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl74 width=159 style='height:14.4pt;width:119pt'>SAT</td>
+  <td class=xl79 width=172 style='width:129pt'>+POWCAL:ERR</td>
+  <td colspan=2 class=xl96 width=512 style='border-right:1.0pt solid black;
+  border-left:none;width:384pt'>饱和, 已达电压上限3300mV或下限0mV</td>
+  <td class=xl71 width=256 style='width:192pt'>检查激光/PD是否正常</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl74 width=159 style='height:14.4pt;width:119pt'>LASER_OFF</td>
+  <td class=xl79 width=172 style='width:129pt'>+POWCAL:ERR</td>
+  <td colspan=2 class=xl96 width=512 style='border-right:1.0pt solid black;
+  border-left:none;width:384pt'>激光未打开, 拒绝调节</td>
+  <td class=xl71 width=256 style='width:192pt'>先开启对应通道激光</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl74 width=159 style='height:14.4pt;width:119pt'>PD_LOW</td>
+  <td class=xl79 width=172 style='width:129pt'>+POWCAL:ERR</td>
+  <td colspan=2 class=xl96 width=512 style='border-right:1.0pt solid black;
+  border-left:none;width:384pt'>PD初始值低于50mV, 拒绝调节</td>
+  <td class=xl71 width=256 style='width:192pt'>检查PD传感器连接</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl74 width=159 style='height:14.4pt;width:119pt'>NO_RESP</td>
+  <td class=xl79 width=172 style='width:129pt'>+POWCAL:ERR</td>
+  <td colspan=2 class=xl96 width=512 style='border-right:1.0pt solid black;
+  border-left:none;width:384pt'>升压但光功率未响应, 拒绝调节</td>
+  <td class=xl71 width=256 style='width:192pt'>检查激光管/光路</td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=30 style='height:22.8pt'>
+  <td height=30 class=xl65 colspan=2 style='height:22.8pt;mso-ignore:colspan'><!-- ==================== Sheet 2: 参考电压配置 ==================== -->二、参考电压配置</td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl67 colspan=3 style='height:13.8pt;mso-ignore:colspan'>功能：<font
+  class="font9">手动设置三路激光的PD参考电压(V2/H/V1) 及锁定/保存</font></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl66 style='height:14.4pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl68 width=159 style='height:14.4pt;width:119pt'>序号</td>
+  <td class=xl69 width=172 style='width:129pt'>发送命令</td>
+  <td class=xl69 width=256 style='width:192pt'>正常响应</td>
+  <td class=xl69 width=256 style='width:192pt'>错误响应</td>
+  <td class=xl69 width=256 style='width:192pt'>说明</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>1. 解锁与锁定</td>
+ </tr>
+ <tr height=39 style='height:29.4pt'>
+  <td height=39 class=xl74 width=159 style='height:29.4pt;width:119pt'>1.1</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+UNLOCKCFG=123456</td>
+  <td class=xl73 width=256 style='width:192pt'>+RESP:UNLOCKED</td>
+  <td class=xl73 width=256 style='width:192pt'>+RESP:PASSWORD ERROR, PLEASE
+  RETRY</td>
+  <td class=xl71 width=256 style='width:192pt'>输入密码解锁配置模式</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl74 width=159 style='height:15.0pt;width:119pt'>1.2</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+LOCKSTATE?</td>
+  <td class=xl73 width=256 style='width:192pt'>+RESP:LOCKED</td>
+  <td class=xl73 width=256 style='width:192pt'>+RESP:UNLOCKED</td>
+  <td class=xl71 width=256 style='width:192pt'>查询当前锁定状态</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>2. 设置参考电压（需先解锁）</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td rowspan=2 height=39 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:29.4pt;border-top:none;width:119pt'>2.1</td>
+  <td rowspan=2 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+SET_FRONT=1500</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+RESP:OK</td>
+  <td class=xl72 width=256 style='width:192pt'>+RESP:PLEASE UNLOCK FIRST</td>
+  <td class=xl70 width=256 style='width:192pt'>设置V2(FRONT)参考电压1500mV</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl73 width=256 style='height:15.0pt;width:192pt'>+RESP:ERR</td>
+  <td class=xl71 width=256 style='width:192pt'>范围: 0~3300mV</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td rowspan=2 height=39 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:29.4pt;border-top:none;width:119pt'>2.2</td>
+  <td rowspan=2 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+SET_SIDE=1200</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+RESP:OK</td>
+  <td class=xl72 width=256 style='width:192pt'>+RESP:PLEASE UNLOCK FIRST</td>
+  <td class=xl70 width=256 style='width:192pt'>设置H(SIDE)参考电压1200mV</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl73 width=256 style='height:15.0pt;width:192pt'>+RESP:ERR</td>
+  <td class=xl71 width=256 style='width:192pt'>范围: 0~3300mV</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td rowspan=2 height=39 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:29.4pt;border-top:none;width:119pt'>2.3</td>
+  <td rowspan=2 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+SET_HORIZ=1300</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+RESP:OK</td>
+  <td class=xl72 width=256 style='width:192pt'>+RESP:PLEASE UNLOCK FIRST</td>
+  <td class=xl70 width=256 style='width:192pt'>设置V1(HORIZ)参考电压1300mV</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl73 width=256 style='height:15.0pt;width:192pt'>+RESP:ERR</td>
+  <td class=xl71 width=256 style='width:192pt'>范围: 0~3300mV</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>3. 查询参考电压</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl74 width=159 style='height:15.0pt;width:119pt'>3.1</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+GET_FRONT?</td>
+  <td class=xl73 width=256 style='width:192pt'>+RESP:FRONT=1500mV</td>
+  <td class=xl76 width=256 style='width:192pt'>—</td>
+  <td class=xl71 width=256 style='width:192pt'>查询V2(FRONT)当前值</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl74 width=159 style='height:15.0pt;width:119pt'>3.2</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+GET_SIDE?</td>
+  <td class=xl73 width=256 style='width:192pt'>+RESP:SIDE=1200mV</td>
+  <td class=xl76 width=256 style='width:192pt'>—</td>
+  <td class=xl71 width=256 style='width:192pt'>查询H(SIDE)当前值</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl74 width=159 style='height:15.0pt;width:119pt'>3.3</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+GET_HORIZ?</td>
+  <td class=xl73 width=256 style='width:192pt'>+RESP:HORIZ=1300mV</td>
+  <td class=xl76 width=256 style='width:192pt'>—</td>
+  <td class=xl71 width=256 style='width:192pt'>查询V1(HORIZ)当前值</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td rowspan=3 height=58 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:43.8pt;border-top:none;width:119pt'>3.4</td>
+  <td rowspan=3 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+GET_ALL</td>
+  <td class=xl72 width=256 style='width:192pt'>RESP:FRONT=1500mV</td>
+  <td rowspan=3 class=xl86 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>—</td>
+  <td rowspan=3 class=xl94 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>一次查询三路参考电压</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl72 width=256 style='height:14.4pt;width:192pt'>RESP:SIDE=1200mV</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl73 width=256 style='height:15.0pt;width:192pt'>RESP:HORIZ=1300mV</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>4. 保存与重置</td>
+ </tr>
+ <tr height=19 style='mso-height-source:userset;height:14.4pt'>
+  <td rowspan=2 height=38 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:28.8pt;border-top:none;width:119pt'>4.1</td>
+  <td rowspan=2 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+SAVE</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+RESP:SAVE OK</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+RESP:PARAMETER NOT READY (NOT LOCKED)</td>
+  <td class=xl70 width=256 style='width:192pt'>保存参考电压到Flash(需锁定状态)</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl71 width=256 style='height:14.4pt;width:192pt'>三路全部设置后自动锁定</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td rowspan=2 height=39 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:29.4pt;border-top:none;width:119pt'>4.2</td>
+  <td rowspan=2 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+RESET</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+RESP:RESET SUCCESS, FLASH ERASED</td>
+  <td class=xl72 width=256 style='width:192pt'>+RESP:PLEASE UNLOCK FIRST</td>
+  <td class=xl70 width=256 style='width:192pt'>清零RAM中的参考电压并擦除Flash</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl73 width=256 style='height:15.0pt;width:192pt'>+RESP:RESET
+  FAILED</td>
+  <td class=xl71 width=256 style='width:192pt'>需先解锁</td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=30 style='height:22.8pt'>
+  <td height=30 class=xl65 colspan=2 style='height:22.8pt;mso-ignore:colspan'><!-- ==================== Sheet 3: 角度(IMU)校准 ==================== -->三、角度(IMU)校准</td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl67 colspan=2 style='height:13.8pt;mso-ignore:colspan'>功能：<font
+  class="font9">IMU加速度计零点校准 + 角度模式切换</font></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl66 style='height:14.4pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl68 width=159 style='height:14.4pt;width:119pt'>序号</td>
+  <td class=xl69 width=172 style='width:129pt'>发送命令</td>
+  <td class=xl69 width=256 style='width:192pt'>正常响应</td>
+  <td class=xl69 width=256 style='width:192pt'>错误响应</td>
+  <td class=xl69 width=256 style='width:192pt'>说明</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>1. IMU零点校准</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td rowspan=4 height=96 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:72.6pt;border-top:none;width:119pt'>1.1</td>
+  <td rowspan=4 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+CALIBRATION</td>
+  <td class=xl72 width=256 style='width:192pt'>+RESP:CALIBRATION START</td>
+  <td rowspan=4 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+RESP:CALIBRATION FAIL</td>
+  <td class=xl70 width=256 style='width:192pt'>启动IMU加速度计零点校准</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl72 width=256 style='height:14.4pt;width:192pt'>...</td>
+  <td class=xl70 width=256 style='width:192pt'>自动采集32次(CALIBRATION_TRIALS)</td>
+ </tr>
+ <tr height=38 style='height:28.8pt'>
+  <td height=38 class=xl72 width=256 style='height:28.8pt;width:192pt'>+RESP:CALIB
+  DONE X=xxx Y=xxx Z=xxx</td>
+  <td class=xl70 width=256 style='width:192pt'>完成后自动保存到Flash</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl73 width=256 style='height:15.0pt;width:192pt'>　</td>
+  <td class=xl80 width=256 style='width:192pt'>前提: 设备水平静置</td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td rowspan=2 height=37 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:28.2pt;border-top:none;width:119pt'>1.2</td>
+  <td rowspan=2 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+GETCALIBRATION</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+RESP:CALIB X=50 Y=-30 Z=120</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+RESP:NO CALIB DATA</td>
+  <td class=xl70 width=256 style='width:192pt'>查询已存储的IMU校准偏移值</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl71 width=256 style='height:14.4pt;width:192pt'>X/Y/Z为加速度计零点偏移</td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=30 style='height:22.8pt'>
+  <td height=30 class=xl65 colspan=2 style='height:22.8pt;mso-ignore:colspan'><!-- ==================== Sheet 4: 系统状态查询 ==================== -->四、系统状态查询</td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl66 style='height:14.4pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl68 width=159 style='height:14.4pt;width:119pt'>序号</td>
+  <td class=xl69 width=172 style='width:129pt'>发送命令</td>
+  <td class=xl69 width=256 style='width:192pt'>响应示例</td>
+  <td class=xl69 width=256 style='width:192pt'>说明</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=4 height=22 class=xl82 width=843 style='border-right:1.0pt solid black;
+  height:16.2pt;width:632pt'>1. 全部信息</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=38 style='height:28.8pt'>
+  <td rowspan=9 height=191 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:144.6pt;border-top:none;width:119pt'>3.1</td>
+  <td rowspan=9 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+GET_ALL_INFO</td>
+  <td class=xl72 width=256 style='width:192pt'>========== ALL FLASH INFO
+  ==========</td>
+  <td class=xl70 width=256 style='width:192pt'>一次性查询设备全部信息</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl72 width=256 style='height:14.4pt;width:192pt'>-----
+  Device Info -----</td>
+  <td class=xl70 width=256 style='width:192pt'>含版本号/IMU校准/参考电压/</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl72 width=256 style='height:14.4pt;width:192pt'>Project:
+  Hawkeye</td>
+  <td class=xl70 width=256 style='width:192pt'>关机日志/运行统计</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl72 width=256 style='height:14.4pt;width:192pt'>HW Ver:
+  x.x.x.x</td>
+  <td class=xl70 width=256 style='width:192pt'>　</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl72 width=256 style='height:14.4pt;width:192pt'>FW Ver:
+  x.x.x.x</td>
+  <td class=xl70 width=256 style='width:192pt'>　</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl72 width=256 style='height:14.4pt;width:192pt'>-----
+  IMU Calibration -----</td>
+  <td class=xl70 width=256 style='width:192pt'>　</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl72 width=256 style='height:14.4pt;width:192pt'>-----
+  Reference Voltage -----</td>
+  <td class=xl70 width=256 style='width:192pt'>　</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl72 width=256 style='height:14.4pt;width:192pt'>-----
+  Power Off Log -----</td>
+  <td class=xl70 width=256 style='width:192pt'>　</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl73 width=256 style='height:15.0pt;width:192pt'>-----
+  Runtime Statistics -----</td>
+  <td class=xl71 width=256 style='width:192pt'>　</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=4 height=22 class=xl82 width=843 style='border-right:1.0pt solid black;
+  height:16.2pt;width:632pt'>2. 调试与维护</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td rowspan=2 height=37 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:28.2pt;border-top:none;width:119pt'>4.2</td>
+  <td rowspan=2 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+CLEAR_ALL_FLASH</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+RESP:ALL FLASH CLEARED</td>
+  <td class=xl70 width=256 style='width:192pt'>擦除全部Data Flash数据(需解锁)</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl71 width=256 style='height:14.4pt;width:192pt'>⚠ 危险操作,
+  会清除所有校准/统计数据</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=30 style='height:22.8pt'>
+  <td height=30 class=xl65 style='height:22.8pt'><!-- ==================== Sheet 5: 其他命令 ==================== -->五、其他命令</td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl66 style='height:14.4pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl68 width=159 style='height:14.4pt;width:119pt'>序号</td>
+  <td class=xl69 width=172 style='width:129pt'>发送命令</td>
+  <td class=xl69 width=256 style='width:192pt'>正常响应</td>
+  <td class=xl69 width=256 style='width:192pt'>错误响应</td>
+  <td class=xl69 width=256 style='width:192pt'>说明</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>调试输出开关</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl74 width=159 style='height:15.0pt;width:119pt'>1.1</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+PRINT=1</td>
+  <td class=xl73 width=256 style='width:192pt'>+RESP:PRINT ON</td>
+  <td class=xl73 width=256 style='width:192pt'>+RESP:ERR</td>
+  <td class=xl71 width=256 style='width:192pt'>开启调试打印输出</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl74 width=159 style='height:15.0pt;width:119pt'>1.2</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+PRINT=0</td>
+  <td class=xl73 width=256 style='width:192pt'>+RESP:PRINT OFF</td>
+  <td class=xl73 width=256 style='width:192pt'>+RESP:ERR</td>
+  <td class=xl71 width=256 style='width:192pt'>关闭调试打印输出</td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=30 style='height:22.8pt'>
+  <td height=30 class=xl65 colspan=3 style='height:22.8pt;mso-ignore:colspan'><!-- ==================== 八: 激光串口控制 (AT+LASER) ==================== -->八、激光串口控制
+  (AT+LASER)</td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl67 colspan=3 style='height:13.8pt;mso-ignore:colspan'>功能：<font
+  class="font16">串口控制单路激光开关, 支持逐路校准流程(H → V1 → V2)</font></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl66 style='height:14.4pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl68 width=159 style='height:14.4pt;width:119pt'>序号</td>
+  <td class=xl69 width=172 style='width:129pt'>发送命令</td>
+  <td class=xl69 width=256 style='width:192pt'>正常响应</td>
+  <td class=xl69 width=256 style='width:192pt'>错误响应</td>
+  <td class=xl69 width=256 style='width:192pt'>说明</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>1. 单路开关控制</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td rowspan=2 height=57 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:42.6pt;border-top:none;width:119pt'>1.1</td>
+  <td rowspan=2 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+LASER=H,ON</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+LASER:H,ON</td>
+  <td class=xl72 width=256 style='width:192pt'>+LASER:ERR,BUSY</td>
+  <td class=xl70 width=256 style='width:192pt'>开启H(SIDE)通道激光</td>
+ </tr>
+ <tr height=38 style='height:28.2pt'>
+  <td height=38 class=xl73 width=256 style='height:28.2pt;width:192pt'>+LASER:ERR,FORMAT</td>
+  <td class=xl71 width=256 style='width:192pt'>首路开启走MOS时序(设PWM→等10ms→EN1_ON)</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td rowspan=2 height=57 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:42.6pt;border-top:none;width:119pt'>1.2</td>
+  <td rowspan=2 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+LASER=H,OFF</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+LASER:H,OFF</td>
+  <td class=xl72 width=256 style='width:192pt'>+LASER:ERR,BUSY</td>
+  <td class=xl70 width=256 style='width:192pt'>关闭H(SIDE)通道激光</td>
+ </tr>
+ <tr height=38 style='height:28.2pt'>
+  <td height=38 class=xl73 width=256 style='height:28.2pt;width:192pt'>+LASER:ERR,FORMAT</td>
+  <td class=xl71 width=256 style='width:192pt'>末路关闭走MOS时序(EN1_OFF→等10ms→关PWM)</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl74 width=159 style='height:15.0pt;width:119pt'>1.3</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+LASER=V1,ON</td>
+  <td class=xl73 width=256 style='width:192pt'>+LASER:V1,ON</td>
+  <td class=xl73 width=256 style='width:192pt'>+LASER:ERR,BUSY</td>
+  <td class=xl71 width=256 style='width:192pt'>开启V1(HORIZ)通道激光</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl74 width=159 style='height:15.0pt;width:119pt'>1.4</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+LASER=V1,OFF</td>
+  <td class=xl73 width=256 style='width:192pt'>+LASER:V1,OFF</td>
+  <td class=xl73 width=256 style='width:192pt'>+LASER:ERR,BUSY</td>
+  <td class=xl71 width=256 style='width:192pt'>关闭V1(HORIZ)通道激光</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl74 width=159 style='height:15.0pt;width:119pt'>1.5</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+LASER=V2,ON</td>
+  <td class=xl73 width=256 style='width:192pt'>+LASER:V2,ON</td>
+  <td class=xl73 width=256 style='width:192pt'>+LASER:ERR,BUSY</td>
+  <td class=xl71 width=256 style='width:192pt'>开启V2(FRONT)通道激光</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl74 width=159 style='height:15.0pt;width:119pt'>1.6</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+LASER=V2,OFF</td>
+  <td class=xl73 width=256 style='width:192pt'>+LASER:V2,OFF</td>
+  <td class=xl73 width=256 style='width:192pt'>+LASER:ERR,BUSY</td>
+  <td class=xl71 width=256 style='width:192pt'>关闭V2(FRONT)通道激光</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>2. 全开/全关 (原子操作)</td>
+ </tr>
+ <tr height=38 style='height:28.2pt'>
+  <td height=38 class=xl74 width=159 style='height:28.2pt;width:119pt'>2.1</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+LASER=ALL,ON</td>
+  <td class=xl73 width=256 style='width:192pt'>+LASER:ALL,ON</td>
+  <td class=xl73 width=256 style='width:192pt'>+LASER:ERR,BUSY</td>
+  <td class=xl71 width=256 style='width:192pt'>三路同时开启(原子:
+  先设gLaserOn再统一配置PWM+MOS)</td>
+ </tr>
+ <tr height=38 style='height:28.2pt'>
+  <td height=38 class=xl74 width=159 style='height:28.2pt;width:119pt'>2.2</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+LASER=ALL,OFF</td>
+  <td class=xl73 width=256 style='width:192pt'>+LASER:ALL,OFF</td>
+  <td class=xl73 width=256 style='width:192pt'>+LASER:ERR,BUSY</td>
+  <td class=xl71 width=256 style='width:192pt'>三路同时关闭(原子: EN1_OFF→10ms→PWM全关)</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>3. 错误码说明</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl74 width=159 style='height:14.4pt;width:119pt'>BUSY</td>
+  <td class=xl79 width=172 style='width:129pt'>+LASER:ERR,BUSY</td>
+  <td colspan=2 class=xl96 width=512 style='border-right:1.0pt solid black;
+  border-left:none;width:384pt'>MOS状态机正忙(EN1 10ms延时中)</td>
+  <td class=xl71 width=256 style='width:192pt'>等~20ms后重试</td>
+ </tr>
+ <tr height=38 style='height:28.2pt'>
+  <td height=38 class=xl74 width=159 style='height:28.2pt;width:119pt'>FORMAT</td>
+  <td class=xl79 width=172 style='width:129pt'>+LASER:ERR,FORMAT: ...</td>
+  <td colspan=2 class=xl96 width=512 style='border-right:1.0pt solid black;
+  border-left:none;width:384pt'>命令格式错误, 缺少逗号或值不正确</td>
+  <td class=xl71 width=256 style='width:192pt'>格式:
+  AT+LASER=&lt;H|V1|V2|ALL&gt;,&lt;ON|OFF&gt;</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>4. 逐路校准工作流程 (PC端)</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td colspan=5 height=19 class=xl99 width=1099 style='border-right:1.0pt solid black;
+  height:14.4pt;width:824pt'>AT+LASER=ALL,OFF // 确保干净初始状态</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td colspan=5 height=19 class=xl98 width=1099 style='border-right:1.0pt solid black;
+  height:14.4pt;width:824pt'>AT+LASER=H,ON // 只开H</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td colspan=5 height=19 class=xl98 width=1099 style='border-right:1.0pt solid black;
+  height:14.4pt;width:824pt'>AT+POWCAL=H,200 // 校准H (循环直到DONE)</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td colspan=5 height=19 class=xl98 width=1099 style='border-right:1.0pt solid black;
+  height:14.4pt;width:824pt'>AT+LASER=H,OFF</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td colspan=5 height=19 class=xl98 width=1099 style='border-right:1.0pt solid black;
+  height:14.4pt;width:824pt'>AT+LASER=V1,ON // 只开V1</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td colspan=5 height=19 class=xl98 width=1099 style='border-right:1.0pt solid black;
+  height:14.4pt;width:824pt'>AT+POWCAL=V1,100 // 校准V1</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td colspan=5 height=19 class=xl98 width=1099 style='border-right:1.0pt solid black;
+  height:14.4pt;width:824pt'>AT+LASER=V1,OFF</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td colspan=5 height=19 class=xl98 width=1099 style='border-right:1.0pt solid black;
+  height:14.4pt;width:824pt'>AT+LASER=V2,ON // 只开V2</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td colspan=5 height=19 class=xl98 width=1099 style='border-right:1.0pt solid black;
+  height:14.4pt;width:824pt'>AT+POWCAL=V2,100 // 校准V2</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td colspan=5 height=19 class=xl98 width=1099 style='border-right:1.0pt solid black;
+  height:14.4pt;width:824pt'>AT+POWCAL=SAVE // 三路保存到Flash</td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td colspan=5 height=20 class=xl104 width=1099 style='border-right:1.0pt solid black;
+  height:15.0pt;width:824pt'>AT+LASER=V2,OFF</td>
+ </tr>
+ <tr height=30 style='height:22.8pt'>
+  <td height=30 class=xl65 colspan=2 style='height:22.8pt;mso-ignore:colspan'><!-- ==================== Sheet 6: 通道映射与参数 ==================== -->六、通道映射与校准参数</td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl67 colspan=2 style='height:13.8pt;mso-ignore:colspan'>UART配置：<font
+  class="font16">SCI0, 115200bps, 8N1, RTS流控</font></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl66 style='height:14.4pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl68 width=159 style='height:14.4pt;width:119pt'>参数</td>
+  <td class=xl69 width=172 style='width:129pt'>H (SIDE)</td>
+  <td class=xl69 width=256 style='width:192pt'>V1 (HORIZ)</td>
+  <td class=xl69 width=256 style='width:192pt'>V2 (FRONT)</td>
+  <td class=xl69 width=256 style='width:192pt'>说明</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>通道映射</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl81 width=159 style='height:14.4pt;width:119pt'>通道枚举</td>
+  <td class=xl76 width=172 style='width:129pt'>POWCAL_CH_H = 0</td>
+  <td class=xl76 width=256 style='width:192pt'>POWCAL_CH_V1 = 1</td>
+  <td class=xl76 width=256 style='width:192pt'>POWCAL_CH_V2 = 2</td>
+  <td class=xl71 width=256 style='width:192pt'>power_calibration.h</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl81 width=159 style='height:14.4pt;width:119pt'>AT指令通道名</td>
+  <td class=xl76 width=172 style='width:129pt'>H</td>
+  <td class=xl76 width=256 style='width:192pt'>V1</td>
+  <td class=xl76 width=256 style='width:192pt'>V2</td>
+  <td class=xl71 width=256 style='width:192pt'>命令中使用的名称</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl81 width=159 style='height:14.4pt;width:119pt'>gLaserOn
+  索引</td>
+  <td class=xl76 width=172 style='width:129pt'>[0]</td>
+  <td class=xl76 width=256 style='width:192pt'>[1]</td>
+  <td class=xl76 width=256 style='width:192pt'>[2]</td>
+  <td class=xl71 width=256 style='width:192pt'>激光开关状态</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl81 width=159 style='height:14.4pt;width:119pt'>g_pd_avg
+  索引</td>
+  <td class=xl76 width=172 style='width:129pt'>[0] = pd_avg1</td>
+  <td class=xl76 width=256 style='width:192pt'>[1] = pd_avg2</td>
+  <td class=xl76 width=256 style='width:192pt'>[2] = pd_avg</td>
+  <td class=xl71 width=256 style='width:192pt'>PD均值(mV)</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl81 width=159 style='height:14.4pt;width:119pt'>reference_voltage
+  变量</td>
+  <td class=xl76 width=172 style='width:129pt'>reference_voltage1</td>
+  <td class=xl76 width=256 style='width:192pt'>reference_voltage2</td>
+  <td class=xl76 width=256 style='width:192pt'>reference_voltage</td>
+  <td class=xl71 width=256 style='width:192pt'>参考电压变量</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>校准目标参数 (hawkeye_config.h)</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl81 width=159 style='height:14.4pt;width:119pt'>目标光功率(x100)</td>
+  <td class=xl76 width=172 style='width:129pt'>200 (2.00mW)</td>
+  <td class=xl76 width=256 style='width:192pt'>100 (1.00mW)</td>
+  <td class=xl76 width=256 style='width:192pt'>100 (1.00mW)</td>
+  <td class=xl71 width=256 style='width:192pt'>POWCAL_TARGET_H/V1/V2</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>步进阈值(x100, 0.01mW)</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl81 width=159 style='height:14.4pt;width:119pt'>大步进阈值</td>
+  <td colspan=3 class=xl107 width=684 style='border-right:1.0pt solid black;
+  border-left:none;width:513pt'>|误差| &gt; 50 (0.50mW) → 步进 200mV</td>
+  <td class=xl71 width=256 style='width:192pt'>POWCAL_THRESH_LARGE</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl81 width=159 style='height:14.4pt;width:119pt'>中步进阈值</td>
+  <td colspan=3 class=xl107 width=684 style='border-right:1.0pt solid black;
+  border-left:none;width:513pt'>|误差| &gt; 20 (0.20mW) → 步进 50mV</td>
+  <td class=xl71 width=256 style='width:192pt'>POWCAL_THRESH_MED</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl81 width=159 style='height:14.4pt;width:119pt'>小步进阈值</td>
+  <td colspan=3 class=xl107 width=684 style='border-right:1.0pt solid black;
+  border-left:none;width:513pt'>|误差| &gt; 5 (0.05mW) → 步进 10mV</td>
+  <td class=xl71 width=256 style='width:192pt'>POWCAL_THRESH_SMALL</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl81 width=159 style='height:14.4pt;width:119pt'>到位条件</td>
+  <td colspan=3 class=xl107 width=684 style='border-right:1.0pt solid black;
+  border-left:none;width:513pt'>|误差| ≤ 5 (0.05mW) → DONE</td>
+  <td class=xl71 width=256 style='width:192pt'>　</td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=5 height=22 class=xl82 width=1099 style='border-right:1.0pt solid black;
+  height:16.2pt;width:824pt'>保护参数</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl81 width=159 style='height:14.4pt;width:119pt'>电压上限</td>
+  <td colspan=3 class=xl107 width=684 style='border-right:1.0pt solid black;
+  border-left:none;width:513pt'>3300mV</td>
+  <td class=xl71 width=256 style='width:192pt'>POWCAL_VOLT_MAX_MV</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl81 width=159 style='height:14.4pt;width:119pt'>电压下限</td>
+  <td colspan=3 class=xl107 width=684 style='border-right:1.0pt solid black;
+  border-left:none;width:513pt'>0mV</td>
+  <td class=xl71 width=256 style='width:192pt'>POWCAL_VOLT_MIN_MV</td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl81 width=159 style='height:14.4pt;width:119pt'>PD最低阈值</td>
+  <td colspan=3 class=xl107 width=684 style='border-right:1.0pt solid black;
+  border-left:none;width:513pt'>50mV (低于此值禁止校准)</td>
+  <td class=xl71 width=256 style='width:192pt'>POWCAL_PD_MIN_MV</td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=30 style='height:22.8pt'>
+  <td height=30 class=xl65 colspan=3 style='height:22.8pt;mso-ignore:colspan'><!-- ==================== Sheet 7: 光功率校准交互流程 ==================== -->七、光功率校准
+  — PC侧交互流程</td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl66 style='height:13.8pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td height=18 class=xl67 colspan=3 style='height:13.8pt;mso-ignore:colspan'>以H通道为例
+  (目标2.00mW)，从初始到完成的完整交互序列：</td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl66 style='height:14.4pt'></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl68 width=159 style='height:14.4pt;width:119pt'>轮次</td>
+  <td class=xl69 width=172 style='width:129pt'>PC 发送</td>
+  <td class=xl69 width=256 style='width:192pt'>MCU 响应</td>
+  <td class=xl69 width=256 style='width:192pt'>说明</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=4 height=22 class=xl82 width=843 style='border-right:1.0pt solid black;
+  height:16.2pt;width:632pt'>初始状态: H通道激光已开启, PD=1500mV, 光功率计读数=0.50mW(偏低)</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=18 style='height:13.8pt'>
+  <td rowspan=2 height=37 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:28.2pt;border-top:none;width:119pt'>1</td>
+  <td rowspan=2 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+POWCAL=H,50</td>
+  <td rowspan=2 class=xl91 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>+POWCAL:H,ADJ,1700mV</td>
+  <td class=xl70 width=256 style='width:192pt'>功率50(0.50mW) &lt; 目标200(2.00mW)</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td height=19 class=xl71 width=256 style='height:14.4pt;width:192pt'>误差150
+  &gt; 大步进阈值50 → +200mV</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=38 style='height:28.2pt'>
+  <td height=38 class=xl74 width=159 style='height:28.2pt;width:119pt'>2</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+POWCAL=H,110</td>
+  <td class=xl73 width=256 style='width:192pt'>+POWCAL:H,ADJ,1900mV</td>
+  <td class=xl71 width=256 style='width:192pt'>功率110(1.10mW), 误差90 &gt; 50 →
+  +200mV</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=38 style='height:28.2pt'>
+  <td height=38 class=xl74 width=159 style='height:28.2pt;width:119pt'>3</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+POWCAL=H,165</td>
+  <td class=xl73 width=256 style='width:192pt'>+POWCAL:H,ADJ,1950mV</td>
+  <td class=xl71 width=256 style='width:192pt'>功率165, 误差35 &gt; 20 → +50mV(中步进)</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl74 width=159 style='height:15.0pt;width:119pt'>4</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+POWCAL=H,190</td>
+  <td class=xl73 width=256 style='width:192pt'>+POWCAL:H,ADJ,1960mV</td>
+  <td class=xl71 width=256 style='width:192pt'>功率190, 误差10 &gt; 5 → +10mV(小步进)</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl74 width=159 style='height:15.0pt;width:119pt'>5</td>
+  <td class=xl75 width=172 style='width:129pt'>AT+POWCAL=H,198</td>
+  <td class=xl73 width=256 style='width:192pt'>+POWCAL:H,DONE,1960mV</td>
+  <td class=xl71 width=256 style='width:192pt'>功率198, 误差2 ≤ 5 → 到位!</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=22 style='height:16.2pt'>
+  <td colspan=4 height=22 class=xl82 width=843 style='border-right:1.0pt solid black;
+  height:16.2pt;width:632pt'>校准完成, 保存结果</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=19 style='height:14.4pt'>
+  <td rowspan=2 height=39 class=xl86 width=159 style='border-bottom:1.0pt solid black;
+  height:29.4pt;border-top:none;width:119pt'>6</td>
+  <td rowspan=2 class=xl88 width=172 style='border-bottom:1.0pt solid black;
+  border-top:none;width:129pt'>AT+POWCAL=SAVE</td>
+  <td class=xl72 width=256 style='width:192pt'>+POWCAL:SAVE,OK</td>
+  <td rowspan=2 class=xl94 width=256 style='border-bottom:1.0pt solid black;
+  border-top:none;width:192pt'>保存到Flash, 自动锁定</td>
+  <td class=xl66></td>
+ </tr>
+ <tr height=20 style='height:15.0pt'>
+  <td height=20 class=xl73 width=256 style='height:15.0pt;width:192pt'>+RESP:LOCKED</td>
+  <td class=xl66></td>
+ </tr>
+ <![if supportMisalignedColumns]>
+ <tr height=0 style='display:none'>
+  <td width=159 style='width:119pt'></td>
+  <td width=172 style='width:129pt'></td>
+  <td width=256 style='width:192pt'></td>
+  <td width=256 style='width:192pt'></td>
+  <td width=256 style='width:192pt'></td>
+ </tr>
+ <![endif]>
+</table>
+
+</body>
+
+</html>

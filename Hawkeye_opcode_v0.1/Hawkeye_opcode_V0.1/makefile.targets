@@ -1,0 +1,17 @@
+# Custom build rule: generate XModem-ready binary from srec
+# This file is included by Debug/makefile and is NOT overwritten by e2 studio
+
+# Generate S-Record file from ELF (needed as intermediate for srec_cat)
+Hawkeye_V0.1.srec: Hawkeye_V0.1.elf
+	@echo Generating S-Record: Hawkeye_V0.1.srec
+	arm-none-eabi-objcopy -O srec --gap-fill 0xff "Hawkeye_V0.1.elf" "Hawkeye_V0.1.srec"
+	@echo Done: Hawkeye_V0.1.srec
+
+# Generate XModem-ready cropped binary with CRC
+Hawkeye_V0.1_crc.bin: Hawkeye_V0.1.srec
+	@echo Generating XModem binary: Hawkeye_V0.1_crc.bin
+	srecord163\srec_cat.exe Hawkeye_V0.1.srec -Crop 0x4000 0x1FFF8 -Fill 0xFF 0x4000 0x1FFF8 -crc16-l-e 0x1FFF8 -XMODEM -Fill 0xFF 0x1FFFC 0x20000 -offset -0x4000 -o Hawkeye_V0.1_crc.bin -binary
+	@echo Done: Hawkeye_V0.1_crc.bin
+
+# Hook into the default build to auto-generate the XModem binary
+all: Hawkeye_V0.1_crc.bin

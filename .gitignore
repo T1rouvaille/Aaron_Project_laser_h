@@ -1,0 +1,38 @@
+# ===== 编译输出 =====
+Debug/
+build/
+*.o
+*.obj
+*.elf
+*.hex
+*.bin
+*.map
+*.a
+*.out
+*.d
+
+# ===== IDE / 编辑器 =====
+.settings/
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ===== 日志 =====
+*.log
+JLinkLog.log
+
+# ===== RA Smart Configurator 自动生成（保留在 git 中以便构建） =====
+# ra_gen/   ← 需要提交
+# ra_cfg/   ← 需要提交
+
+# ===== 敏感文件 =====
+.env
+*.env
+secrets.*
+
+# ===== spec-workflow 运行时 =====
+.spec-workflow/approvals/
