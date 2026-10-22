@@ -33,26 +33,6 @@
 /* ABS Bootloader specific definitions */
 #define FMC_APROM_BASE                  0x00004000     /* APROM Base Address */
 #define PAGE_SIZE                       0x200U         /* 512 bytes per page */
-#define FEE_SIZE                        512U           /* EEPROM size */
-
-/* EEPROM protection areas */
-#define PROTECTED_PAGE_SIZE_0           (16U)
-#define PROTECTED_PAGE_START_0          (0U)
-#define PROTECTED_PAGE_SIZE_1           (16U)
-#define PROTECTED_PAGE_START_1          (FEE_SIZE - PROTECTED_PAGE_SIZE_1)
-
-/* Bank states for EEPROM redundancy */
-#define BANK_EMPTY                      0x00U
-#define BANK_VALID                      0x01U
-#define BANK_INVALID                    0x02U
-#define BANK_NEW                        0x03U
-#define BANK_OLD                        0x04U
-
-/* Flash addresses for EEPROM emulation (using last 2KB block of APP area) */
-#define FMC_BANK0_START_ADRESS          (APP_IMAGE_END_ADDRESS - 2048 - 512)   // First 512 bytes of last 2KB block
-#define FMC_BANK1_START_ADRESS          (APP_IMAGE_END_ADDRESS - 2048)          // Second 512 bytes of last 2KB block
-#define FMC_BANK0_END_ADRESS            (FMC_BANK0_START_ADRESS + FEE_SIZE - 4)
-#define FMC_BANK1_END_ADRESS            (FMC_BANK1_START_ADRESS + FEE_SIZE - 4)
 
 /* Communication baud rates */
 #define UART_BAUD_FAST                  115200U
@@ -65,7 +45,6 @@
 #define COMMAND_HANDSHAKE               'B'
 #define COMMAND_IDENTIFY                'I'
 #define COMMAND_READ_EEPROM             'F'
-#define COMMAND_LOAD_EEPROM             'E'
 #define COMMAND_READ_FLASH              'N'
 #define COMMAND_LOAD_FLASH              'M'
 #define COMMAND_SET_ADDRESS             'D'
@@ -89,12 +68,12 @@
 #define VERSION_PAYLOAD_SIZE    86U
 
 /* Bootloader version — matching Honcho PR3 */
-#define SW_VERSION_MAJOR        0x13U
-#define SW_VERSION_MINOR        0x32U
+#define SW_VERSION_MAJOR        0x00U
+#define SW_VERSION_MINOR        0x01U
 
 /* Tool identity strings — matching Honcho PR3 personalization.h */
-#define G_TOOL_PART_NUMBER      "NA265280"
-#define G_PERSONALIZATION       "MSL2 2222APR Hawkeye Laser M1 20VHE 123"
+#define G_TOOL_PART_NUMBER      "NA837330"
+#define G_PERSONALIZATION       "MSL2 MARCHTHR Hawkeye Laser M1 20VHE OCT"
 
 /* RA2E1 Unique ID register */
 #define UCID_ADDRESS            0x01001C00U
@@ -108,6 +87,7 @@
 /*  UBOX 收到 Honcho 校准命令后写此 flag, APP 启动时检测并执行校准      */
 /* ================================================================== */
 #define FLASH_DF_BASE_ADDR          0x40100000U    /* RA2E1 Data Flash 基地址 */
+#define DATALOG_SIZE                192U            /* Data Flash datalog: 3 blocks × 64 bytes */
 #define CALIB_REQ_FLAG_OFFSET       12U             /* 第1块 offset 12 (校准数据 reserved 之后) */
 #define CALIB_REQ_FLAG_ADDR         (FLASH_DF_BASE_ADDR + CALIB_REQ_FLAG_OFFSET)
 #define CALIB_REQ_FLAG_MAGIC        0xCA11B000U     /* "CALIB" 谐音 */

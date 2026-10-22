@@ -10,13 +10,12 @@
  *         addr=0xFFFE → 写校准请求 flag 到 Data Flash, APP 下次启动执行校准
  *         其他        → 回显 'N'
  *   - READ_EEPROM ('F'): 不读任何字节, 根据已存地址响应:
- *         addr=0xFFFF → 发送 EEPROM 数据
+ *         addr=0xFFFF → 发送 APP Data Flash datalog (192 bytes, 进 IBOX 时已缓存)
  *         其他        → 仅发 ETX
  *   - CHANGE_BAUD ('*'): 回显 '*', 切高速波特率
  *
  * Bootloader 特有命令 (Honcho 未实现, RA2E1 保留):
  *   - LOAD_FLASH   ('M'): 写入 Flash 页面, 含 auto-erase
- *   - LOAD_EEPROM  ('E'): 写入 EEPROM 数据
  *
  * Flash page size : 512 bytes
  * Erase block size: 2048 bytes (RA2E1 Code Flash minimum erase unit)
@@ -30,6 +29,7 @@
 #include "comms/comms.h"
 #include "crc16.h"
 #include "hal_data.h"
+#include <string.h>
 
 
 /* ------------------------------------------------------------------ */
@@ -64,8 +64,7 @@ static uint32_t g_target_addr = APP_IMAGE_START_ADDRESS;
 static uint32_t g_target_offset = 0U;
 static uint8_t  g_addr_high     = 0U;
 static uint8_t  g_addr_low      = 0U;
-static uint8_t  g_FEE_Buffer[FEE_SIZE];
-static uint8_t  g_read_eeprom   = 0U;
+static uint8_t  g_datalog_buf[DATALOG_SIZE];
 static bool     g_timer_enabled = true;   /* 对齐 abs: 握手后关定时器 */
 
 /* ------------------------------------------------------------------ */
@@ -82,19 +81,12 @@ static fsp_err_t erase_block_if_needed(uint32_t addr);
 static void cmd_handshake(void);
 static void cmd_identify(void);
 static void cmd_read_eeprom(void);
-static void cmd_load_eeprom(void);
 static void cmd_read_flash(void);
 static void cmd_read_version_info(void);
 static void cmd_load_flash(void);
 static void cmd_set_address(void);
 static void cmd_change_baud(void);
 static void try_boot(void);
-
-/* EEPROM Bank management */
-static void FEE_Read(void);
-static void FEE_Write(void);
-static void Get_Bank_Final_State(uint8_t* state);
-static void Increment_EEP_Buffer(const uint8_t bytes, const uint8_t increment);
 
 /* ------------------------------------------------------------------ */
 /*  Simple hex print helpers (replaces snprintf for %X/%lX)            */
@@ -151,15 +143,12 @@ static void honcho_loop(void)
     g_timer_enabled = false;
     g_timer0.p_api->stop(g_timer0.p_ctrl);
 
+    /* 进入 IBOX 时一次性从 Data Flash 读取 APP datalog (192 bytes) 到 RAM 缓存,
+     * 后续 'F' READ_EEPROM 直接从缓存 memcpy, 无需重复读 Flash. */
+    memcpy(g_datalog_buf, (const void *)FLASH_DF_BASE_ADDR, DATALOG_SIZE);
+
     while (1)
     {
-        /* Read EEPROM on first handshake */
-        if (g_read_eeprom == 1U)
-        {
-            FEE_Read();
-            g_read_eeprom = 2U;
-        }
-
         err = recv_byte(&cmd);
 
         if (err != FSP_SUCCESS)
@@ -173,7 +162,6 @@ static void honcho_loop(void)
             case COMMAND_HANDSHAKE:     cmd_handshake();     break;
             case COMMAND_IDENTIFY:      cmd_identify();      break;
             case COMMAND_READ_EEPROM:   cmd_read_eeprom();   break;
-            case COMMAND_LOAD_EEPROM:   cmd_load_eeprom();   break;
             case COMMAND_READ_FLASH:    cmd_read_flash();    break;
             case COMMAND_LOAD_FLASH:    cmd_load_flash();    break;
             case COMMAND_SET_ADDRESS:   cmd_set_address();   break;
@@ -315,11 +303,6 @@ static void cmd_handshake(void)
 {
     uint8_t rsp = COMMAND_HANDSHAKE;
     comms_send(&rsp, 1U);
-
-    if (g_read_eeprom == 0U)
-    {
-        g_read_eeprom = 1U;  /* Trigger EEPROM read on next loop */
-    }
 
     /* Stop timer — subsequent operations never timeout (same as abs_bootloader) */
     g_timer_enabled = false;
@@ -463,9 +446,6 @@ static void cmd_read_flash(void)
         g_target_offset = 0U;
         g_target_addr =  0x00000000;
     }
-
-    /* 切回低速波特率 (与 abs_bootloader 的 Read_Flash_Page 一致) */
-    comms_set_baud(UART_BAUD_SLOW);
 }
 
 /*
@@ -571,21 +551,19 @@ static void cmd_read_eeprom(void)
 {
     if (g_target_offset == VERSION_REQUEST_OFFSET)
     {
-        /* addr = 0xFFFF → 发送 FEE (EEPROM 模拟) 数据 */
-        uint8_t rsp[FEE_SIZE + 4];
+        /* addr = 0xFFFF → 发送 APP Data Flash datalog (进入 IBOX 时已缓存到 RAM) */
+        uint8_t rsp[DATALOG_SIZE + 4];
         uint16_t i;
 
-        FEE_Read();  /* 读 FEE 到 g_FEE_Buffer */
-
         rsp[0] = COMMAND_READ_EEPROM;
-        rsp[1] = (uint8_t)(FEE_SIZE >> 8U);
-        rsp[2] = (uint8_t)(FEE_SIZE & 0xFFU);
+        rsp[1] = (uint8_t)(DATALOG_SIZE >> 8U);
+        rsp[2] = (uint8_t)(DATALOG_SIZE & 0xFFU);
 
-        for (i = 0U; i < FEE_SIZE; i++)
+        for (i = 0U; i < DATALOG_SIZE; i++)
         {
-            rsp[3U + i] = g_FEE_Buffer[i];
+            rsp[3U + i] = g_datalog_buf[i];
         }
-        rsp[3U + FEE_SIZE] = ETX;
+        rsp[3U + DATALOG_SIZE] = ETX;
 
         comms_send(rsp, sizeof(rsp));
     }
@@ -595,87 +573,6 @@ static void cmd_read_eeprom(void)
         uint8_t etx = ETX;
         comms_send(&etx, 1U);
     }
-}
-
-/*
- * 'E' LOAD_EEPROM
- *
- * Bootloader 特有命令 (Honcho 未实现).
- * Receive: length high + length low + data + checksum high + checksum low + ETX
- * Response: 'E' + length high + length low + checksum high + checksum low + ETX
- *
- * Protected pages: first 16 bytes and last 16 bytes are protected
- */
-static void cmd_load_eeprom(void)
-{
-    uint8_t  nh, nl;
-    uint8_t  buf[FEE_SIZE];
-    uint8_t  ch_rx, cl_rx;
-    uint16_t n, i;
-    uint16_t checksum;
-    uint8_t  Protected_Page_Data[PROTECTED_PAGE_SIZE_0];
-
-    uint8_t etx = COMMAND_LOAD_EEPROM;
-    comms_send(&etx, 1U);
-
-    if (recv_byte(&nh) != FSP_SUCCESS) { send_nak(); return; }
-    if (recv_byte(&nl) != FSP_SUCCESS) { send_nak(); return; }
-    n = (uint16_t)(((uint16_t)nh << 8U) | (uint16_t)nl);
-
-    if (n == 0U || n > FEE_SIZE) { send_nak(); return; }
-
-    /* Increment EEPROM buffer counter (for redundancy) */
-    Increment_EEP_Buffer(3U, 1U);
-
-    checksum = 0U;
-
-    for (i = 0U; i < n; i++)
-    {
-        if (i < (PROTECTED_PAGE_START_0 + PROTECTED_PAGE_SIZE_0))
-        {
-            if (recv_byte(&Protected_Page_Data[i]) != FSP_SUCCESS) { send_nak(); return; }
-            comms_send(&Protected_Page_Data[i], 1U);   /* echo byte immediately per spec */
-            checksum += Protected_Page_Data[i];
-        }
-        else if (i < PROTECTED_PAGE_START_1)
-        {
-            if (recv_byte(&buf[i]) != FSP_SUCCESS) { send_nak(); return; }
-            comms_send(&buf[i], 1U);                   /* echo byte immediately per spec */
-            checksum += buf[i];
-            g_FEE_Buffer[i] = buf[i];
-        }
-        else
-        {
-            if (recv_byte(&Protected_Page_Data[i - PROTECTED_PAGE_START_1]) != FSP_SUCCESS) { send_nak(); return; }
-            comms_send(&Protected_Page_Data[i - PROTECTED_PAGE_START_1], 1U);  /* echo byte immediately per spec */
-            checksum += Protected_Page_Data[i - PROTECTED_PAGE_START_1];
-        }
-    }
-
-/*    if (recv_byte(&ch_rx) != FSP_SUCCESS) { send_nak(); return; }
-    if (recv_byte(&cl_rx) != FSP_SUCCESS) { send_nak(); return; }*/
-
-/*    if ((uint8_t)(checksum >> 8U) != ch_rx || (uint8_t)(checksum & 0xFFU) != cl_rx)
-    {
-        send_nak();
-        return;
-    }*/
-
-    /* Write to EEPROM (Flash emulation) */
-    FEE_Write();
-
-    /* Send response */
-    uint8_t rsp[3];
-/*    rsp[0] = COMMAND_LOAD_EEPROM;
-    rsp[1] = nh;
-    rsp[2] = nl;*/
-    rsp[0] = (uint8_t)(checksum >> 8U);
-    rsp[1] = (uint8_t)(checksum & 0xFFU);
-    rsp[2] = ETX;
-    comms_send(rsp, sizeof(rsp));
-
-    /* 切回低速波特率 (与 abs_bootloader 的 SET_BAUD 一致) */
-    //comms_set_baud(UART_BAUD_SLOW);
 }
 
 /*
@@ -750,9 +647,6 @@ static void cmd_load_flash(void)
         rsp[2] = ETX;
         comms_send(rsp, 3U);
     }
-
-    /* 切回低速波特率 (与 abs_bootloader 的 SET_BAUD 一致) */
-    comms_set_baud(UART_BAUD_SLOW);
 }
 
 
@@ -760,7 +654,7 @@ static void cmd_load_flash(void)
  * '*' CHANGE_BAUD — Bootloader 格式
  *
  * 回显 '*' 后切换到高速波特率, 保持高速等待后续 SET_ADDRESS + LOAD_FLASH.
- * LOAD_FLASH/LOAD_EEPROM 完成后自行切回慢速.
+ * '*' 是唯一波特率切换点, N/M 命令不再自行切回慢速.
  */
 static void cmd_change_baud(void)
 {
@@ -784,174 +678,6 @@ static void try_boot(void)
     struct boot_rsp rsp;
     /* Jump to APP unconditionally (same as abs_bootloader) */
     do_boot(&rsp);
-}
-
-/* ================================================================== */
-/*  EEPROM Bank Management                                             */
-/* ================================================================== */
-
-static void FEE_Read(void)
-{
-    uint8_t bank_state;
-    Get_Bank_Final_State(&bank_state);
-
-    switch (bank_state)
-    {
-        case 0x00U: /* B0 empty,   B1 empty   */
-        case 0x20U: /* B0 invalid, B1 empty   */
-        case 0x02U: /* B0 empty,   B1 invalid */
-        case 0x22U: /* B0 invalid, B1 invalid */
-            g_FEE_Buffer[0] = 0xFFU;
-            break;
-
-        case 0x10U: /* B0 valid,   B1 empty   */
-        case 0x34U: /* B0 new,     B1 old     */
-        case 0x12U: /* B0 valid,   B1 invalid */
-            /* Read from Bank0 */
-            for (uint16_t i = 0U; i < FEE_SIZE; i++)
-            {
-                g_FEE_Buffer[i] = *(uint8_t *)(FMC_BANK0_START_ADRESS + i);
-            }
-            break;
-
-        case 0x01U: /* B0 empty,   B1 valid   */
-        case 0x21U: /* B0 invalid, B1 valid   */
-        case 0x43U: /* B0 old,     B1 new     */
-            /* Read from Bank1 */
-            for (uint16_t i = 0U; i < FEE_SIZE; i++)
-            {
-                g_FEE_Buffer[i] = *(uint8_t *)(FMC_BANK1_START_ADRESS + i);
-            }
-            break;
-
-        default:
-            break;
-    }
-}
-
-static void FEE_Write(void)
-{
-    uint8_t bank_state;
-    Get_Bank_Final_State(&bank_state);
-    fsp_err_t err;
-
-    switch (bank_state)
-    {
-        case 0x00U: /* B0 empty,   B1 empty   */
-        case 0x20U: /* B0 invalid, B1 empty   */
-        case 0x02U: /* B0 empty,   B1 invalid */
-        case 0x01U: /* B0 empty,   B1 valid   */
-        case 0x43U: /* B0 old,     B1 new     */
-        case 0x21U: /* B0 invalid, B1 valid   */
-            /* Write to Bank0 */
-            ThreadsAndInterrupts(DISABLE);
-            err = g_flash0.p_api->write(g_flash0.p_ctrl, (uint32_t)g_FEE_Buffer,
-                                        FMC_BANK0_START_ADRESS, FEE_SIZE);
-            ThreadsAndInterrupts(RE_ENABLE);
-            break;
-
-        case 0x34U: /* B0 new,     B1 old     */
-        case 0x10U: /* B0 valid,   B1 empty   */
-        case 0x12U: /* B0 valid,   B1 invalid */
-            /* Write to Bank1 */
-            ThreadsAndInterrupts(DISABLE);
-            err = g_flash0.p_api->write(g_flash0.p_ctrl, (uint32_t)g_FEE_Buffer,
-                                        FMC_BANK1_START_ADRESS, FEE_SIZE);
-            ThreadsAndInterrupts(RE_ENABLE);
-            break;
-
-        case 0x22U: /* B0 invalid, B1 invalid */
-            /* Write to both banks */
-            ThreadsAndInterrupts(DISABLE);
-            err = g_flash0.p_api->write(g_flash0.p_ctrl, (uint32_t)g_FEE_Buffer,
-                                        FMC_BANK0_START_ADRESS, FEE_SIZE);
-            if (err == FSP_SUCCESS)
-            {
-                err = g_flash0.p_api->write(g_flash0.p_ctrl, (uint32_t)g_FEE_Buffer,
-                                            FMC_BANK1_START_ADRESS, FEE_SIZE);
-            }
-            ThreadsAndInterrupts(RE_ENABLE);
-            break;
-
-        default:
-            break;
-    }
-}
-
-static void Get_Bank_Final_State(uint8_t* state)
-{
-    uint32_t bank0_start_count = *(uint32_t *)FMC_BANK0_START_ADRESS & 0xFFFFFU;
-    uint32_t bank1_start_count = *(uint32_t *)FMC_BANK1_START_ADRESS & 0xFFFFFU;
-    uint32_t bank0_end_count   = *(uint32_t *)FMC_BANK0_END_ADRESS >> 8U;
-    uint32_t bank1_end_count   = *(uint32_t *)FMC_BANK1_END_ADRESS >> 8U;
-
-    uint8_t bank0_state = BANK_EMPTY;
-    uint8_t bank1_state = BANK_EMPTY;
-
-    /* Determine Bank0 state */
-    if (bank0_start_count == bank0_end_count)
-    {
-        bank0_state = (bank0_start_count == 0xFFFFFFU) ? BANK_EMPTY : BANK_VALID;
-    }
-    else
-    {
-        bank0_state = BANK_INVALID;
-    }
-
-    /* Determine Bank1 state */
-    if (bank1_start_count == bank1_end_count)
-    {
-        bank1_state = (bank1_start_count == 0xFFFFFFU) ? BANK_EMPTY : BANK_VALID;
-    }
-    else
-    {
-        bank1_state = BANK_INVALID;
-    }
-
-    /* Determine which bank is newer if both are valid */
-    if ((bank0_state == BANK_VALID) && (bank1_state == BANK_VALID))
-    {
-        if (bank0_start_count >= bank1_start_count)
-        {
-            bank0_state = BANK_NEW;
-            bank1_state = BANK_OLD;
-        }
-        else
-        {
-            bank1_state = BANK_NEW;
-            bank0_state = BANK_OLD;
-        }
-    }
-
-    *state = (uint8_t)((bank0_state << 4U) | bank1_state);
-}
-
-static void Increment_EEP_Buffer(const uint8_t bytes, const uint8_t increment)
-{
-    uint8_t i;
-    uint32_t temp = 0U;
-    const uint32_t max = ((uint32_t)(1U << (8U * bytes)) - 1U);
-
-    for (i = 0U; i < bytes; i++)
-    {
-        temp += (uint32_t)g_FEE_Buffer[i] << (8U * i);
-    }
-
-    if (temp < max - increment)
-    {
-        temp += increment;
-    }
-    else
-    {
-        temp = max;
-    }
-
-    for (i = 0U; i < bytes; i++)
-    {
-        g_FEE_Buffer[i]                    = (uint8_t)(temp & 0xFFU);
-        g_FEE_Buffer[FEE_SIZE - bytes + i] = (uint8_t)(temp & 0xFFU);
-        temp >>= 8U;
-    }
 }
 
 /* ================================================================== */
