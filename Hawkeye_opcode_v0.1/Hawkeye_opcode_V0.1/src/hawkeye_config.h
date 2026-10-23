@@ -22,6 +22,10 @@
 #define HAWKEYE_VERSION_BUILD   1                   /* 构建号 */
 #define HAWKEYE_VERSION_STR     "0.0.0.1"           /* 版本字符串 */
 
+/* 硬件/固件版本字符串（Stepper 标准 Module ID 属性, 写入 devinfo @320） */
+#define HAWKEYE_HW_REVISION_STR "A1"                /* 硬件版本 (PCB/装配版本) */
+#define HAWKEYE_FW_REVISION_STR "0.0.1"              /* 固件版本 */
+
 /* ======================================================================
  *  MCU / 硬件基础参数
  * ====================================================================== */

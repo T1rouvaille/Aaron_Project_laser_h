@@ -175,10 +175,11 @@ static void flash_scatter_stats(uint8_t *buf, const flash_stats_t *stats)
     buf_w32(buf, FLASH_SLOPE_V1V2,   stats->slope_v1_v2_s);
     buf_w32(buf, FLASH_SLOPE_H1V1V2, stats->slope_all3_s);
 
-    /* Cycle 段（laser_on_cnt: [0]=H, [1]=V1, [2]=V2） */
-    buf_w32(buf, FLASH_CYCLE_HOR_LASER, stats->laser_on_cnt[0]);
-    buf_w32(buf, FLASH_CYCLE_V1_LASER,  stats->laser_on_cnt[1]);
-    buf_w32(buf, FLASH_CYCLE_V2_LASER,  stats->laser_on_cnt[2]);
+    /* Cycle 段（laser_on_cnt: [0]=H, [1]=V1, [2]=V2; 按键开+关各计一次; H2 无激光保持 0） */
+    buf_w32(buf, FLASH_CYCLE_H1_LASER, stats->laser_on_cnt[0]);
+    buf_w32(buf, FLASH_CYCLE_H2_LASER, 0);
+    buf_w32(buf, FLASH_CYCLE_V1_LASER, stats->laser_on_cnt[1]);
+    buf_w32(buf, FLASH_CYCLE_V2_LASER, stats->laser_on_cnt[2]);
 
     /* Optical 段（校准目标功率常量, 固定值） */
     buf_w32(buf, FLASH_OPT_H,  (uint32_t)POWCAL_TARGET_H);
@@ -225,7 +226,7 @@ static void flash_gather_stats(flash_stats_t *stats)
     stats->slope_v1_v2_s = flash_rd32(FLASH_SLOPE_V1V2);
     stats->slope_all3_s  = flash_rd32(FLASH_SLOPE_H1V1V2);
 
-    stats->laser_on_cnt[0] = flash_rd32(FLASH_CYCLE_HOR_LASER);
+    stats->laser_on_cnt[0] = flash_rd32(FLASH_CYCLE_H1_LASER);
     stats->laser_on_cnt[1] = flash_rd32(FLASH_CYCLE_V1_LASER);
     stats->laser_on_cnt[2] = flash_rd32(FLASH_CYCLE_V2_LASER);
 
@@ -604,10 +605,28 @@ fsp_err_t flash_save_devinfo_from_config(void)
     strncpy(info.project_name, HAWKEYE_PROJECT_NAME, sizeof(info.project_name) - 1U);
     info.project_name[sizeof(info.project_name) - 1U] = '\0';
 
-    /* reserved_str 预留空，可后续通过 AT 指令写入SN等 */
-    memset(info.reserved_str, 0, sizeof(info.reserved_str));
+    /* 硬件/固件版本字符串（Stepper 标准 Module ID 属性） */
+    strncpy(info.hardware_revision, HAWKEYE_HW_REVISION_STR,
+            sizeof(info.hardware_revision) - 1U);
+    info.hardware_revision[sizeof(info.hardware_revision) - 1U] = '\0';
+    strncpy(info.firmware_revision, HAWKEYE_FW_REVISION_STR,
+            sizeof(info.firmware_revision) - 1U);
+    info.firmware_revision[sizeof(info.firmware_revision) - 1U] = '\0';
 
     return flash_save_devinfo(&info);
+}
+
+/* ======================================================================
+ *  底层字段读取接口 (调试/完整 dump 用)
+ * ====================================================================== */
+uint16_t flash_read_u16(uint32_t offset)
+{
+    return flash_rd16(offset);
+}
+
+uint32_t flash_read_u32(uint32_t offset)
+{
+    return flash_rd32(offset);
 }
 
 /* ======================================================================

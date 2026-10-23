@@ -32,16 +32,16 @@
  *   16       8      保留
  *   24..51   28     Protection[14] (uint16×14)    关机原因 → 对应字段
  *   52..203  152    Time[38] (uint32×38)          激光/角度运行时长
- *   204..231 28     Cycle[7] (uint32×7)           激光按键次数
- *   232..243 12     Optical[3] (int32×3)          光功率
- *   244..261 18     Offset: MEMS X/Y/Z (int16) +   校准偏移
+ *   204..235 32     Cycle[8] (uint32×8)           激光按键次数
+ *   236..247 12     Optical[3] (int32×3)          光功率
+ *   248..265 18     Offset: MEMS X/Y/Z (int16) +   校准偏移
  *                   Reset (uint32) + Model (uint8[8])
- *   262..269 8      Reference[4] (uint16×4)       参考电压
- *   270..271 2      MEMS drop record (uint16)
- *   272..277 6      temp[3] (uint16×3)
- *   278..281 4      Bluetooth[2] (uint16×2)
- *   282..301 20     Run Time[5] (uint32×5)
- *   302..319 18     保留
+ *   266..273 8      Reference[4] (uint16×4)       参考电压
+ *   274..275 2      MEMS drop record (uint16)
+ *   276..281 6      temp[3] (uint16×3)
+ *   282..285 4      Bluetooth[2] (uint16×2)
+ *   286..305 20     Run Time[5] (uint32×5)
+ *   306..319 14     保留
  *  -------------------------------------------------------------------
  * ====================================================================== */
 #define FLASH_DATALOG_BLOCKS     (5U)                                    /* datalog 5 块 */
@@ -129,55 +129,68 @@
 #define FLASH_TIME_TILT_4_10          (176U)  /* 4~10°     ← angle_4_10_s */
 #define FLASH_TIME_TILT_10_90         (180U)  /* > 10°     ← angle_10_90_s */
 /* 马达/亮度段 (184..203) — Hawkeye 无马达/亮度，保持 0 */
+#define FLASH_TIME_YAW_MOTOR          (184U)  /* Total runtime of yaw motor */
+#define FLASH_TIME_VERT_MOTOR         (188U)  /* Total runtime of vertical motor */
+#define FLASH_TIME_LOW_BRIGHT         (192U)  /* Time in low brightness */
+#define FLASH_TIME_MED_BRIGHT         (196U)  /* Time in medium brightness */
+#define FLASH_TIME_HIGH_BRIGHT        (200U)  /* Time in high brightness */
 
 /* ======================================================================
- *  Cycle 段 (offset 204..231, uint32 × 7) — Stepper 标准开关次数
+ *  Cycle 段 (offset 204..235, uint32 × 8) — Stepper 标准开关次数
  * ====================================================================== */
 #define FLASH_OFFSET_CYCLE_BASE       (204U)
 #define FLASH_CYCLE_MAIN_SW           (204U)  /* 主开关周期 ← LOCK_SW 关机计数 (与 @34 同源) */
-#define FLASH_CYCLE_HOR_LASER         (208U)  /* 水平激光按键 ← laser_on_cnt[0]=H */
-#define FLASH_CYCLE_V1_LASER          (212U)  /* 垂直1激光按键 ← laser_on_cnt[1]=V1 */
-#define FLASH_CYCLE_V2_LASER          (216U)  /* 垂直2激光按键 ← laser_on_cnt[2]=V2 */
-#define FLASH_CYCLE_LOCK_SW           (220U)  /* 锁定开关周期 ← LOCK_SW 关机计数 (与 @34 同源) */
-#define FLASH_CYCLE_BRIGHTNESS        (224U)
-#define FLASH_CYCLE_BRIGHTNESS_REMOTE (228U)
+#define FLASH_CYCLE_H1_LASER          (208U)  /* 水平1激光按键 ← laser_on_cnt[0]=H */
+#define FLASH_CYCLE_H2_LASER          (212U)  /* 水平2激光按键 (Hawkeye 无 H2, 保持 0) */
+#define FLASH_CYCLE_V1_LASER          (216U)  /* 垂直1激光按键 ← laser_on_cnt[1]=V1 */
+#define FLASH_CYCLE_V2_LASER          (220U)  /* 垂直2激光按键 ← laser_on_cnt[2]=V2 */
+#define FLASH_CYCLE_LOCK_SW           (224U)  /* 锁定开关周期 ← LOCK_SW 关机计数 (与 @34 同源) */
+#define FLASH_CYCLE_BRIGHTNESS        (228U)
+#define FLASH_CYCLE_BRIGHTNESS_REMOTE (232U)
 
 /* ======================================================================
- *  Optical 段 (offset 232..243, int32 × 3) — 光功率
+ *  Optical 段 (offset 236..247, int32 × 3) — 光功率
  * ====================================================================== */
-#define FLASH_OFFSET_OPTICAL_BASE     (232U)
-#define FLASH_OPT_H                   (232U)
-#define FLASH_OPT_V1                  (236U)
-#define FLASH_OPT_V2                  (240U)
+#define FLASH_OFFSET_OPTICAL_BASE     (236U)
+#define FLASH_OPT_H                   (236U)
+#define FLASH_OPT_V1                  (240U)
+#define FLASH_OPT_V2                  (244U)
 
 /* ======================================================================
- *  Offset 段 (offset 244..261) — MEMS 校准
+ *  Offset 段 (offset 248..265) — MEMS 校准
  * ====================================================================== */
-#define FLASH_OFFSET_MEMS_X           (244U)  /* int16 LSB */
-#define FLASH_OFFSET_MEMS_Y           (246U)  /* int16 LSB */
-#define FLASH_OFFSET_MEMS_Z           (248U)  /* int16 LSB */
-#define FLASH_OFFSET_MEMS_RESET       (250U)  /* uint32 校准次数 */
-#define FLASH_OFFSET_MEMS_MODEL       (254U)  /* uint8[8] ASCII */
+#define FLASH_OFFSET_MEMS_X           (248U)  /* int16 LSB */
+#define FLASH_OFFSET_MEMS_Y           (250U)  /* int16 LSB */
+#define FLASH_OFFSET_MEMS_Z           (252U)  /* int16 LSB */
+#define FLASH_OFFSET_MEMS_RESET       (254U)  /* uint32 校准次数 */
+#define FLASH_OFFSET_MEMS_MODEL       (258U)  /* uint8[8] ASCII */
 
 /* ======================================================================
- *  Reference 段 (offset 262..269, uint16 × 4) — PD 参考电压 (mV)
+ *  Reference 段 (offset 266..273, uint16 × 4) — PD 参考电压 (mV)
  * ====================================================================== */
-#define FLASH_OFFSET_REF_BASE         (262U)
-#define FLASH_REF_H1                  (262U)  /* H  ← ref_side */
-#define FLASH_REF_H2                  (264U)
-#define FLASH_REF_V1                  (266U)  /* V1 ← ref_horiz */
-#define FLASH_REF_V2                  (268U)  /* V2 ← ref_front */
+#define FLASH_OFFSET_REF_BASE         (266U)
+#define FLASH_REF_H1                  (266U)  /* H  ← ref_side */
+#define FLASH_REF_H2                  (268U)
+#define FLASH_REF_V1                  (270U)  /* V1 ← ref_horiz */
+#define FLASH_REF_V2                  (272U)  /* V2 ← ref_front */
 
 /* ======================================================================
  *  其余段（Hawkeye 保持 0）
  * ====================================================================== */
-#define FLASH_OFFSET_DROP             (270U)  /* uint16 */
-#define FLASH_OFFSET_TEMP_BASE        (272U)  /* uint16 × 3 */
-#define FLASH_TEMP_HIGH               (272U)  /* Laser Works in high Temp   ← temp_high_cnt */
-#define FLASH_TEMP_NORMAL             (274U)  /* Laser Works in normal Temp ← temp_normal_cnt */
-#define FLASH_TEMP_LOW                (276U)  /* Laser Works in low Temp    ← temp_low_cnt */
-#define FLASH_OFFSET_BLE_BASE         (278U)  /* uint16 × 2 */
-#define FLASH_OFFSET_RUNTIME_BASE     (282U)  /* uint32 × 5 */
+#define FLASH_OFFSET_DROP             (274U)  /* uint16 */
+#define FLASH_OFFSET_TEMP_BASE        (276U)  /* uint16 × 3 */
+#define FLASH_TEMP_HIGH               (276U)  /* Laser Works in high Temp   ← temp_high_cnt */
+#define FLASH_TEMP_NORMAL             (278U)  /* Laser Works in normal Temp ← temp_normal_cnt */
+#define FLASH_TEMP_LOW                (280U)  /* Laser Works in low Temp    ← temp_low_cnt */
+#define FLASH_OFFSET_BLE_BASE         (282U)  /* uint16 × 2 */
+#define FLASH_BLE_CONNECTED           (282U)  /* Bluetooth connected */
+#define FLASH_BLE_DROPPED             (284U)  /* Bluetooth connections dropped */
+#define FLASH_OFFSET_RUNTIME_BASE     (286U)  /* uint32 × 5 */
+#define FLASH_RUNTIME_REMOTE_20       (286U)  /* Remote operation distance <20m */
+#define FLASH_RUNTIME_REMOTE_40       (290U)  /* Remote operation distance <40m */
+#define FLASH_RUNTIME_REMOTE_60       (294U)  /* Remote operation distance <60m */
+#define FLASH_RUNTIME_REMOTE_60P      (298U)  /* Remote operation distance >60m */
+#define FLASH_RUNTIME_COIN_CELL       (302U)  /* Coin cell runtime */
 
 /* ======================================================================
  *  关机原因（与 bsp_adc.h 中 power_off_reason_t 对应）
@@ -284,11 +297,10 @@ typedef struct
     uint8_t   laser_on_mask;       /* 激光开启状态掩码（bit0=激光1, bit1=激光2, bit2=激光3） */
     uint8_t   reserved_1[3];       /* 保留，对齐到4字节边界 */
 
-    uint32_t  reserved_ver;        /* 保留，版本区对齐到16字节             */
-
     char      project_name[32];    /* 项目名称，最多31字节+'\0'            */
-    char      reserved_str[12];    /* 预留备注字段，最多11字节+'\0'        */
-} flash_devinfo_t;   /* 4+4+4+4+4+4+32+12 = 64字节 */
+    char      hardware_revision[8]; /* 硬件版本字符串, 如 "A1" (<=7字节+'\0') */
+    char      firmware_revision[8]; /* 固件版本字符串, 如 "0.01" (<=7字节+'\0') */
+} flash_devinfo_t;   /* 4+4+4+4+4+32+8+8 = 64字节 */
 
 
 /* ======================================================================
@@ -367,5 +379,12 @@ fsp_err_t flash_clear_all(void);
  * ====================================================================== */
 bool     flash_check_calib_request(void);
 fsp_err_t flash_clear_calib_request(void);
+
+/* ======================================================================
+ *  底层字段读取接口 (调试/完整 dump 用)
+ *  供 AT+GET_ALL_INFO 按偏移读出任意字段（含 Hawkeye 恒为 0 的字段）
+ * ====================================================================== */
+uint16_t flash_read_u16(uint32_t offset);
+uint32_t flash_read_u32(uint32_t offset);
 
 #endif /* FLASH_FLASH_H_ */

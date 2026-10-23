@@ -618,7 +618,7 @@ void Debug_UART9_ProcessReceivedData(void)
        }
        case CMD_GET_ALL_INFO:
        {
-           char msg[80];
+           char msg[128];
            char hms[24];
 
            uart9_send_blocking("========== ALL FLASH INFO ==========\r\n");
@@ -648,262 +648,196 @@ void Debug_UART9_ProcessReceivedData(void)
                             info.fw_patch, info.fw_build);
                    uart9_send_blocking(msg);
 
-                   snprintf(msg, sizeof(msg), "  Module ID    : %s\r\n",
-                            info.reserved_str[0] != '\0' ? info.reserved_str : "(empty)");
-                   uart9_send_blocking(msg);
-               }
-           }
-           wdt_feed();
-           /* ==================== 2. MEMS 校准偏移 (Offset 段 @244/246/248) ==================== */
-           uart9_send_blocking("----- MEMS Offset -----\r\n");
-           wdt_feed();
-           {
-               int16_t ox, oy, oz;
-               fsp_err_t err = flash_load_calibration(&ox, &oy, &oz);
-               if (err == FSP_ERR_NOT_INITIALIZED)
-               {
-                   uart9_send_blocking("  MEMS Offset : NO DATA\r\n");
-               }
-               else
-               {
-                   snprintf(msg, sizeof(msg), "  [Offset] MEMS X axis Offset : %d\r\n", ox);
-                   uart9_send_blocking(msg);
-                   snprintf(msg, sizeof(msg), "  [Offset] MEMS Y axis Offset : %d\r\n", oy);
-                   uart9_send_blocking(msg);
-                   snprintf(msg, sizeof(msg), "  [Offset] MEMS Z axis Offset : %d\r\n", oz);
-                   uart9_send_blocking(msg);
-               }
-           }
-           wdt_feed();
-           /* ==================== 3. 参考电压 ==================== */
-           uart9_send_blocking("----- Reference Voltage -----\r\n");
-           wdt_feed();
-           {
-               int32_t front, side, horiz;
-               fsp_err_t err = flash_load_reference(&front, &side, &horiz);
-               if (err == FSP_ERR_NOT_INITIALIZED)
-               {
-                   uart9_send_blocking("  RefVolt : NO DATA\r\n");
-               }
-               else
-               {
-                   snprintf(msg, sizeof(msg), "  [Reference Voltage] Laser H1 : %ldmV\r\n", (long)side);
-                   uart9_send_blocking(msg);
-                   snprintf(msg, sizeof(msg), "  [Reference Voltage] Laser V1 : %ldmV\r\n", (long)horiz);
-                   uart9_send_blocking(msg);
-                   snprintf(msg, sizeof(msg), "  [Reference Voltage] Laser V2 : %ldmV\r\n", (long)front);
-                   uart9_send_blocking(msg);
-               }
-           }
-           wdt_feed();
-           /* ==================== 4. 关机日志 ==================== */
-           uart9_send_blocking("----- Power Off Log -----\r\n");
-           {
-               flash_poweroff_log_t log;
-               fsp_err_t err = flash_load_poweroff_log(&log);
-               if (err == FSP_ERR_NOT_INITIALIZED)
-               {
-                   uart9_send_blocking("  PowerLog: NO DATA\r\n");
-               }
-               else
-               {
-                   snprintf(msg, sizeof(msg), "  [Protection] Total : %lu\r\n",
-                            (unsigned long)log.total);
+                   snprintf(msg, sizeof(msg), "  HW Rev    : %s\r\n",
+                            info.hardware_revision);
                    uart9_send_blocking(msg);
 
-                   static const char * const reasons[POWEROFF_REASON_COUNT] = {
-                       "[Protection] Battery Under Voltage",  /* count[0] BATTERY_LOW   → @32 */
-                       "[Protection] Main Power Switch Off",  /* count[1] LOCK_SW      → @34 */
-                       "[Protection] MEMS error",             /* count[2] I2C_FAIL     → @36 */
-                       "[Protection] NTC - Hot Pack",         /* count[3] OVERHEAT     → @30 */
-                       "[Protection] IDLE Timeout"            /* count[4] IDLE_TIMEOUT → @38 */
-                   };
-                   for (uint8_t i = 0; i < POWEROFF_REASON_COUNT; i++)
+                   snprintf(msg, sizeof(msg), "  FW Rev    : %s\r\n",
+                            info.firmware_revision);
+                   uart9_send_blocking(msg);
+               }
+           }
+           wdt_feed();
+           /* ==================== 2. 完整 datalog dump（按 Stepper xlsx 顺序） ==================== */
+           if (flash_read_u32(FLASH_OFFSET_HDR_MAGIC) != FLASH_DATALOG_MAGIC)
+           {
+               uart9_send_blocking("----- Datalog -----\r\n");
+               uart9_send_blocking("  Datalog : NO DATA\r\n");
+           }
+           else
+           {
+               /* 打印辅助宏：秒→时分秒 + 各类型字段 dump */
+               #define FMT_HMS(sec, buf) do { \
+                   uint32_t _h = (sec)/3600U; \
+                   uint32_t _m = ((sec)%3600U)/60U; \
+                   uint32_t _s = (sec)%60U; \
+                   snprintf((buf), sizeof(buf), "%luh%02lum%02lus", \
+                            (unsigned long)_h, (unsigned long)_m, (unsigned long)_s); \
+               } while(0)
+
+               #define DUMP_SECS(label, off) do { \
+                   uint32_t _v = flash_read_u32(off); \
+                   FMT_HMS(_v, hms); \
+                   snprintf(msg, sizeof(msg), "  %-48s : %s\r\n", label, hms); \
+                   uart9_send_blocking(msg); \
+               } while(0)
+
+               #define DUMP_U32(label, off) do { \
+                   snprintf(msg, sizeof(msg), "  %-48s : %lu\r\n", label, (unsigned long)flash_read_u32(off)); \
+                   uart9_send_blocking(msg); \
+               } while(0)
+
+               #define DUMP_U16(label, off) do { \
+                   snprintf(msg, sizeof(msg), "  %-48s : %lu\r\n", label, (unsigned long)flash_read_u16(off)); \
+                   uart9_send_blocking(msg); \
+               } while(0)
+
+               #define DUMP_I16(label, off) do { \
+                   snprintf(msg, sizeof(msg), "  %-48s : %d\r\n", label, (int)(int16_t)flash_read_u16(off)); \
+                   uart9_send_blocking(msg); \
+               } while(0)
+
+               #define DUMP_I32(label, off) do { \
+                   snprintf(msg, sizeof(msg), "  %-48s : %ld\r\n", label, (long)(int32_t)flash_read_u32(off)); \
+                   uart9_send_blocking(msg); \
+               } while(0)
+
+               /* ---- Protection[14] (@24..51, uint16) ---- */
+               uart9_send_blocking("----- [Protection] -----\r\n");
+               DUMP_U16("[Protection] NTC - Hot Laser", FLASH_PROT_NTC_HOT_LASER);
+               DUMP_U16("[Protection] NTC - Cold Laser", FLASH_PROT_NTC_COLD_LASER);
+               DUMP_U16("[Protection] NTC - Frozen Pack", FLASH_PROT_NTC_FROZEN_PACK);
+               DUMP_U16("[Protection] NTC - Hot Pack", FLASH_PROT_NTC_HOT_PACK);
+               DUMP_U16("[Protection] Battery Under Voltage", FLASH_PROT_BATTERY_UV);
+               DUMP_U16("[Protection] Main Power Switch Off", FLASH_PROT_MAIN_SW_OFF);
+               DUMP_U16("[Protection] MEMS error", FLASH_PROT_MEMS_ERROR);
+               DUMP_U16("[Protection] IDLE Timeout", FLASH_PROT_IDLE_TIMEOUT);
+               DUMP_U16("[Protection] H1 Over Current", FLASH_PROT_H1_OVERCUR);
+               DUMP_U16("[Protection] H2 Over Current[x]", FLASH_PROT_H2_OVERCUR);
+               DUMP_U16("[Protection] V1 Over Current", FLASH_PROT_V1_OVERCUR);
+               DUMP_U16("[Protection] V2 Over Current", FLASH_PROT_V2_OVERCUR);
+               DUMP_U16("[Protection] 8V Buck Convertor - Upper Limit[x]", FLASH_PROT_BUCK_UPPER);
+               DUMP_U16("[Protection] 8V Buck Convertor - Lower Limit[x]", FLASH_PROT_BUCK_LOWER);
+               wdt_feed();
+
+               /* ---- Time[38] + total_run_s (@4, @52..203, uint32 秒) ---- */
+               uart9_send_blocking("----- [Time] -----\r\n");
+               DUMP_SECS("[Time] Total runtime of the unit", FLASH_OFFSET_HDR_TOTAL_RUN);
+               DUMP_SECS("[Time] Laser H1 runtime", FLASH_TIME_H1);
+               DUMP_SECS("[Time] Laser H2 runtime[x]", FLASH_TIME_H2);
+               DUMP_SECS("[Time] Laser V1 runtime", FLASH_TIME_V1);
+               DUMP_SECS("[Time] Laser V2 runtime", FLASH_TIME_V2);
+               DUMP_SECS("[Time] Laser H1&H2 runtime[x]", FLASH_TIME_H1H2);
+               DUMP_SECS("[Time] Laser H1&V1 runtime", FLASH_TIME_H1V1);
+               DUMP_SECS("[Time] Laser H1&V2 runtime", FLASH_TIME_H1V2);
+               DUMP_SECS("[Time] Laser H2&V1 runtime[x]", FLASH_TIME_H2V1);
+               DUMP_SECS("[Time] Laser H2&V2 runtime[x]", FLASH_TIME_H2V2);
+               DUMP_SECS("[Time] Laser V1&V2 runtime", FLASH_TIME_V1V2);
+               DUMP_SECS("[Time] Laser H1&H2&V1 runtime[x]", FLASH_TIME_H1H2V1);
+               DUMP_SECS("[Time] Laser H1&H2&V2 runtime[x]", FLASH_TIME_H1H2V2);
+               DUMP_SECS("[Time] Laser H1&V1&V2 runtime", FLASH_TIME_H1V1V2);
+               DUMP_SECS("[Time] Laser H2&V1&V2 runtime[x]", FLASH_TIME_H2V1V2);
+               DUMP_SECS("[Time] Laser H1&H2&V1&V2 runtime[x]", FLASH_TIME_H1H2V1V2);
+               DUMP_SECS("[Time] Slope Laser H1 runtime", FLASH_SLOPE_H1);
+               DUMP_SECS("[Time] Slope Laser H2 runtime[x]", FLASH_SLOPE_H2);
+               DUMP_SECS("[Time] Slope Laser V1 runtime", FLASH_SLOPE_V1);
+               DUMP_SECS("[Time] Slope Laser V2 runtime", FLASH_SLOPE_V2);
+               DUMP_SECS("[Time] Slope Laser H1&H2 runtime[x]", FLASH_SLOPE_H1H2);
+               DUMP_SECS("[Time] Slope Laser H1&V1 runtime", FLASH_SLOPE_H1V1);
+               DUMP_SECS("[Time] Slope Laser H1&V2 runtime", FLASH_SLOPE_H1V2);
+               DUMP_SECS("[Time] Slope Laser H2&V1 runtime[x]", FLASH_SLOPE_H2V1);
+               DUMP_SECS("[Time] Slope Laser H2&V2 runtime[x]", FLASH_SLOPE_H2V2);
+               DUMP_SECS("[Time] Slope Laser V1&V2 runtime", FLASH_SLOPE_V1V2);
+               DUMP_SECS("[Time] Slope Laser H1&H2&V1 runtime[x]", FLASH_SLOPE_H1H2V1);
+               DUMP_SECS("[Time] Slope Laser H1&H2&V2 runtime[x]", FLASH_SLOPE_H1H2V2);
+               DUMP_SECS("[Time] Slope Laser H1&V1&V2 runtime", FLASH_SLOPE_H1V1V2);
+               DUMP_SECS("[Time] Slope Laser H2&V1&V2 runtime[x]", FLASH_SLOPE_H2V1V2);
+               DUMP_SECS("[Time] Slope Laser H1&H2&V1&V2 runtime[x]", FLASH_SLOPE_H1H2V1V2);
+               DUMP_SECS("[Time] tilt < 4 degrees (leveled)", FLASH_TIME_TILT_0_4);
+               DUMP_SECS("[Time] 4 < tilt < 10 degrees", FLASH_TIME_TILT_4_10);
+               DUMP_SECS("[Time] tilt > 10 degrees", FLASH_TIME_TILT_10_90);
+               DUMP_SECS("[Time] Total runtime of yaw motor[x]", FLASH_TIME_YAW_MOTOR);
+               DUMP_SECS("[Time] Total runtime of vertical motor[x]", FLASH_TIME_VERT_MOTOR);
+               DUMP_SECS("[Time] Time in low brightness[x]", FLASH_TIME_LOW_BRIGHT);
+               DUMP_SECS("[Time] Time in medium brightness[x]", FLASH_TIME_MED_BRIGHT);
+               DUMP_SECS("[Time] Time in high brightness[x]", FLASH_TIME_HIGH_BRIGHT);
+               wdt_feed();
+
+               /* ---- Cycle[8] (@204..235, uint32) ---- */
+               uart9_send_blocking("----- [Cycle] -----\r\n");
+               DUMP_U32("[Cycle] Main Power Switch", FLASH_CYCLE_MAIN_SW);
+               DUMP_U32("[Cycle] Horizontal1 Laser Switch", FLASH_CYCLE_H1_LASER);
+               DUMP_U32("[Cycle] Horizontal2 Laser Switch[x]", FLASH_CYCLE_H2_LASER);
+               DUMP_U32("[Cycle] Vertical1 Laser Switch", FLASH_CYCLE_V1_LASER);
+               DUMP_U32("[Cycle] Vertical2 Laser Switch", FLASH_CYCLE_V2_LASER);
+               DUMP_U32("[Cycle] Lock Switch", FLASH_CYCLE_LOCK_SW);
+               DUMP_U32("[Cycle] Global Brightness Switch Cycles[x]", FLASH_CYCLE_BRIGHTNESS);
+               DUMP_U32("[Cycle] Global Brightness Remote Switch Cycles[x]", FLASH_CYCLE_BRIGHTNESS_REMOTE);
+               wdt_feed();
+
+               /* ---- Optical[3] (@236..247, int32) ---- */
+               uart9_send_blocking("----- [Optical power] -----\r\n");
+               DUMP_I32("[Optical power] Laser H power", FLASH_OPT_H);
+               DUMP_I32("[Optical power] Laser V1 power", FLASH_OPT_V1);
+               DUMP_I32("[Optical power] Laser V2 power", FLASH_OPT_V2);
+               wdt_feed();
+
+               /* ---- Offset / MEMS (@248..265) ---- */
+               uart9_send_blocking("----- [Offset] / [Model] -----\r\n");
+               DUMP_I16("[Offset] MEMS X axis Offset", FLASH_OFFSET_MEMS_X);
+               DUMP_I16("[Offset] MEMS Y axis Offset", FLASH_OFFSET_MEMS_Y);
+               DUMP_I16("[Offset] MEMS Z axis Offset", FLASH_OFFSET_MEMS_Z);
+               DUMP_U32("[Offset Reset Count] MEMS Reset", FLASH_OFFSET_MEMS_RESET);
+               {
+                   uint8_t model[8];
+                   if (flash_load_mems_model(model) == FSP_SUCCESS)
                    {
-                       snprintf(msg, sizeof(msg), "  %-32s: %lu\r\n",
-                                reasons[i], (unsigned long)log.count[i]);
+                       char model_str[9];
+                       for (uint8_t i = 0; i < 8U; i++) model_str[i] = (char)model[i];
+                       model_str[8] = '\0';
+                       snprintf(msg, sizeof(msg), "  %-48s : %s\r\n", "[Model] MEMS Model", model_str);
                        uart9_send_blocking(msg);
                    }
-
-                   /* Cycle 段: 主开关/锁定开关周期次数 (与 @34 同源 = count[1]) */
-                   snprintf(msg, sizeof(msg), "  [Cycle] Main Power Switch Cycles : %lu\r\n",
-                            (unsigned long)log.count[1]);
-                   uart9_send_blocking(msg);
-                   snprintf(msg, sizeof(msg), "  [Cycle] Lock Switch Cycles : %lu\r\n",
-                            (unsigned long)log.count[1]);
-                   uart9_send_blocking(msg);
+                   else
+                   {
+                       snprintf(msg, sizeof(msg), "  %-48s : NO DATA\r\n", "[Model] MEMS Model");
+                       uart9_send_blocking(msg);
+                   }
                }
-           }
-           wdt_feed();
-           /* ==================== 5. 运行统计 ==================== */
-           uart9_send_blocking("----- Runtime Statistics -----\r\n");
-           {
-               flash_stats_t stats;
-               fsp_err_t err = flash_load_stats(&stats);
-               if (err == FSP_ERR_NOT_INITIALIZED)
-               {
-                   uart9_send_blocking("  Stats   : NO DATA\r\n");
-               }
-               else
-               {
-                   /* 辅助lambda：秒→时分秒字符串 */
-                   #define FMT_HMS(sec, buf) do { \
-                       uint32_t _h = (sec)/3600U; \
-                       uint32_t _m = ((sec)%3600U)/60U; \
-                       uint32_t _s = (sec)%60U; \
-                       snprintf((buf), sizeof(buf), "%luh%02lum%02lus", \
-                                (unsigned long)_h, (unsigned long)_m, (unsigned long)_s); \
-                   } while(0)
+               wdt_feed();
 
-                   FMT_HMS(stats.total_run_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] Total runtime of the unit : %s\r\n", hms);
-                   uart9_send_blocking(msg);
+               /* ---- Reference[4] (@266..273, uint16 mV) ---- */
+               uart9_send_blocking("----- [Reference Voltage] -----\r\n");
+               DUMP_U16("[Reference Voltage] Laser H1", FLASH_REF_H1);
+               DUMP_U16("[Reference Voltage] Laser H2[x]", FLASH_REF_H2);
+               DUMP_U16("[Reference Voltage] Laser V1", FLASH_REF_V1);
+               DUMP_U16("[Reference Voltage] Laser V2", FLASH_REF_V2);
+               wdt_feed();
 
-                   snprintf(msg, sizeof(msg), "  [Cycle] Horizontal Laser Switch Cycles : %lu\r\n",
-                            (unsigned long)stats.laser_on_cnt[0]);
-                   uart9_send_blocking(msg);
-                   snprintf(msg, sizeof(msg), "  [Cycle] Vertical1 Laser Switch Cycles : %lu\r\n",
-                            (unsigned long)stats.laser_on_cnt[1]);
-                   uart9_send_blocking(msg);
-                   snprintf(msg, sizeof(msg), "  [Cycle] Vertical2 Laser Switch Cycles : %lu\r\n",
-                            (unsigned long)stats.laser_on_cnt[2]);
-                   uart9_send_blocking(msg);
+               /* ---- drop / temp (@274..281) ---- */
+               uart9_send_blocking("----- [Count] / [temp] -----\r\n");
+               DUMP_U16("[Count] MEMS drop record(>500g)[x]", FLASH_OFFSET_DROP);
+               DUMP_U16("[temp] Laser Works in high Temp", FLASH_TEMP_HIGH);
+               DUMP_U16("[temp] Laser Works in normal Temp", FLASH_TEMP_NORMAL);
+               DUMP_U16("[temp] Laser Works in low Temp", FLASH_TEMP_LOW);
+               wdt_feed();
 
-                   FMT_HMS(stats.h_only_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] Laser H1 runtime : %s\r\n", hms);
-                   uart9_send_blocking(msg);
+               /* ---- Bluetooth / RunTime (@282..305) ---- */
+               uart9_send_blocking("----- [Count] / [Run Time] -----\r\n");
+               DUMP_U16("[Count] Bluetooth connected[x]", FLASH_BLE_CONNECTED);
+               DUMP_U16("[Count] Bluetooth connections dropped[x]", FLASH_BLE_DROPPED);
+               DUMP_SECS("[Run Time] Remote operation distance <20m[x]", FLASH_RUNTIME_REMOTE_20);
+               DUMP_SECS("[Run Time] Remote operation distance <40m[x]", FLASH_RUNTIME_REMOTE_40);
+               DUMP_SECS("[Run Time] Remote operation distance <60m[x]", FLASH_RUNTIME_REMOTE_60);
+               DUMP_SECS("[Run Time] Remote operation distance >60m[x]", FLASH_RUNTIME_REMOTE_60P);
+               DUMP_SECS("[Run Time] Coin cell runtime[x]", FLASH_RUNTIME_COIN_CELL);
 
-                   FMT_HMS(stats.v1_only_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] Laser V1 runtime : %s\r\n", hms);
-                   uart9_send_blocking(msg);
-
-                   FMT_HMS(stats.v2_only_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] Laser V2 runtime : %s\r\n", hms);
-                   uart9_send_blocking(msg);
-
-                   FMT_HMS(stats.v1_h_only_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] Laser H1&V1 runtime : %s\r\n", hms);
-                   uart9_send_blocking(msg);
-
-                   FMT_HMS(stats.v2_h_only_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] Laser H1&V2 runtime : %s\r\n", hms);
-                   uart9_send_blocking(msg);
-
-                   FMT_HMS(stats.v1_v2_only_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] Laser V1&V2 runtime : %s\r\n", hms);
-                   uart9_send_blocking(msg);
-
-                   FMT_HMS(stats.all3_laser_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] Laser H1&V1&V2 runtime : %s\r\n", hms);
-                   uart9_send_blocking(msg);
-
-                   FMT_HMS(stats.angle_0_4_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] tilt < 4 degrees : %s\r\n", hms);
-                   uart9_send_blocking(msg);
-
-                   FMT_HMS(stats.angle_4_10_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] 4 < tilt < 10 degrees : %s\r\n", hms);
-                   uart9_send_blocking(msg);
-
-                   FMT_HMS(stats.angle_10_90_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] tilt > 10 degrees : %s\r\n", hms);
-                   uart9_send_blocking(msg);
-
-                   /* ---- Slope 段（激光 × 倾角 >4° 交叉时长）---- */
-                   FMT_HMS(stats.slope_h_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] Slope Laser H1 runtime : %s\r\n", hms);
-                   uart9_send_blocking(msg);
-                   FMT_HMS(stats.slope_v1_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] Slope Laser V1 runtime : %s\r\n", hms);
-                   uart9_send_blocking(msg);
-                   FMT_HMS(stats.slope_v2_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] Slope Laser V2 runtime : %s\r\n", hms);
-                   uart9_send_blocking(msg);
-                   FMT_HMS(stats.slope_v1_h_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] Slope Laser H1&V1 runtime : %s\r\n", hms);
-                   uart9_send_blocking(msg);
-                   FMT_HMS(stats.slope_v2_h_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] Slope Laser H1&V2 runtime : %s\r\n", hms);
-                   uart9_send_blocking(msg);
-                   FMT_HMS(stats.slope_v1_v2_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] Slope Laser V1&V2 runtime : %s\r\n", hms);
-                   uart9_send_blocking(msg);
-                   FMT_HMS(stats.slope_all3_s, hms);
-                   snprintf(msg, sizeof(msg), "  [Time] Slope Laser H1&V1&V2 runtime : %s\r\n", hms);
-                   uart9_send_blocking(msg);
-
-                   #undef FMT_HMS
-
-                   /* ---- temp 段（温度分区检测次数）---- */
-                   snprintf(msg, sizeof(msg), "  [temp] Laser Works in high Temp : %lu\r\n",
-                            (unsigned long)stats.temp_high_cnt);
-                   uart9_send_blocking(msg);
-                   snprintf(msg, sizeof(msg), "  [temp] Laser Works in normal Temp : %lu\r\n",
-                            (unsigned long)stats.temp_normal_cnt);
-                   uart9_send_blocking(msg);
-                   snprintf(msg, sizeof(msg), "  [temp] Laser Works in low Temp : %lu\r\n",
-                            (unsigned long)stats.temp_low_cnt);
-                   uart9_send_blocking(msg);
-
-                   /* ---- Protection 检测计数 ---- */
-                   snprintf(msg, sizeof(msg), "  [Protection] NTC - Hot Laser : %lu\r\n",
-                            (unsigned long)stats.ntc_hot_laser);
-                   uart9_send_blocking(msg);
-                   snprintf(msg, sizeof(msg), "  [Protection] NTC - Cold Laser : %lu\r\n",
-                            (unsigned long)stats.ntc_cold_laser);
-                   uart9_send_blocking(msg);
-                   snprintf(msg, sizeof(msg), "  [Protection] NTC - Frozen Pack : %lu\r\n",
-                            (unsigned long)stats.ntc_frozen_pack);
-                   uart9_send_blocking(msg);
-                   snprintf(msg, sizeof(msg), "  [Protection] H1 Over Current : %lu\r\n",
-                            (unsigned long)stats.h1_over_cur);
-                   uart9_send_blocking(msg);
-                   snprintf(msg, sizeof(msg), "  [Protection] V1 Over Current : %lu\r\n",
-                            (unsigned long)stats.v1_over_cur);
-                   uart9_send_blocking(msg);
-                   snprintf(msg, sizeof(msg), "  [Protection] V2 Over Current : %lu\r\n",
-                            (unsigned long)stats.v2_over_cur);
-                   uart9_send_blocking(msg);
-
-                   /* ---- Optical 段（校准目标功率常量）---- */
-                   snprintf(msg, sizeof(msg), "  [Optical power] Laser H power : %d\r\n", POWCAL_TARGET_H);
-                   uart9_send_blocking(msg);
-                   snprintf(msg, sizeof(msg), "  [Optical power] Laser V1 power : %d\r\n", POWCAL_TARGET_V1);
-                   uart9_send_blocking(msg);
-                   snprintf(msg, sizeof(msg), "  [Optical power] Laser V2 power : %d\r\n", POWCAL_TARGET_V2);
-                   uart9_send_blocking(msg);
-               }
-           }
-           wdt_feed();
-           /* ==================== 6. MEMS Reset Count + Model ==================== */
-           {
-               uint32_t reset_cnt;
-               fsp_err_t err = flash_load_mems_reset_count(&reset_cnt);
-               if (err == FSP_ERR_NOT_INITIALIZED)
-               {
-                   uart9_send_blocking("  MEMS Reset Count : NO DATA\r\n");
-               }
-               else
-               {
-                   snprintf(msg, sizeof(msg), "  [Offset Reset Count] MEMS Reset Count : %lu\r\n",
-                            (unsigned long)reset_cnt);
-                   uart9_send_blocking(msg);
-               }
-
-               uint8_t model[8];
-               err = flash_load_mems_model(model);
-               if (err == FSP_ERR_NOT_INITIALIZED)
-               {
-                   uart9_send_blocking("  MEMS Model : NO DATA\r\n");
-               }
-               else
-               {
-                   char model_str[9];
-                   for (uint8_t i = 0; i < 8U; i++) model_str[i] = (char)model[i];
-                   model_str[8] = '\0';
-                   snprintf(msg, sizeof(msg), "  [Model] MEMS Model : %s\r\n", model_str);
-                   uart9_send_blocking(msg);
-               }
+               #undef FMT_HMS
+               #undef DUMP_SECS
+               #undef DUMP_U32
+               #undef DUMP_U16
+               #undef DUMP_I16
+               #undef DUMP_I32
            }
            uart9_send_blocking("====================================\r\n");
            break;

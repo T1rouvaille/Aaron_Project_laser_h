@@ -309,6 +309,8 @@ void key_handle_events(void)
             else
             {
                 /* ===== 关闭该路 ===== */
+                stats_laser_key_press(i);   /* 关闭也计一次按键（开+关各 +1） */
+
                 uint8_t count_before = laser_on_count();
 
                 if (count_before > 1)

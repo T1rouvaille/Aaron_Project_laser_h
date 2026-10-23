@@ -370,8 +370,8 @@ void hal_entry(void)
      *   0     10      0     按键扫描
      *   1     20      5     电源监控
      *   2     50     15     串口 + 电池
-     *   3    100     30     MEMS + 姿态
-     *   4    500     30     低频任务
+     *   3     80     30     MEMS + 姿态
+     *   4    500     40     低频任务
      *   5   1000     50     运行统计
      */
     static const uint16_t PERIOD[] = { 10,  20,  50,  80,  500, 1000 };
@@ -477,7 +477,7 @@ void hal_entry(void)
                 ntc_temp_protection_task(Read_ADC_Voltage_Value_NTC());
             }
 
-            /* ---- 50ms 任务: 串口 + 电池 + IMU姿态 ---- */
+            /* ---- 50ms 任务: 串口 + 电池 ---- */
             if (++CNT[2] >= PERIOD[2])
             {
                 wdt_feed();
@@ -485,9 +485,16 @@ void hal_entry(void)
                 Debug_UART9_ProcessReceivedData();
                 battery_voltage_task();
 
+                /* 电池 NTC 检测: 每 100ms (2×50ms) 一次 */
+                static uint16_t bat_ntc_100ms_cnt = 0;
+                if (++bat_ntc_100ms_cnt >= 2)
+                {
+                    bat_ntc_100ms_cnt = 0;
+                    battery_temp_check();
+                }
             }
 
-            /* ---- 100ms 任务: (空) ---- */
+            /* ---- 80ms 任务: MEMS + 姿态 ---- */
             if (++CNT[3] >= PERIOD[3])
             {
                 wdt_feed();
@@ -508,8 +515,6 @@ void hal_entry(void)
             {
                 wdt_feed();
                 CNT[5] = 0;
-
-                battery_temp_check();
 
                 /* 电池ADC原始值, 每秒输出一次 */
 /*                {

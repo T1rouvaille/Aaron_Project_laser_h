@@ -312,9 +312,9 @@ pre_en1_result_t laser_pre_en1_detect_step(void)
 volatile bool g_ntc_low_temp = false;
 
 /* ===== 电池包 NTC 温度检测 ===== */
-#define BAT_NTC_SAMPLE_CNT  (4U)    /* NTC电阻计算累加次数 (4次=4秒) */
-#define BAT_NTC_OPEN_CONFIRM_COUNT  (3U)  /* th<100 开路连续确认次数 (1次/秒×3=3秒消抖) */
-#define BAT_NTC_TH_MAX_STEP  (300U) /* 平均TH相邻周期(4秒)允许最大升温(ADC raw), 超过视为采样异常 */
+#define BAT_NTC_SAMPLE_CNT  (4U)    /* NTC电阻计算累加次数 (4次×100ms=400ms平均) */
+#define BAT_NTC_OPEN_CONFIRM_COUNT  (3U)  /* th<100 开路连续确认次数 (3次×100ms=300ms消抖) */
+#define BAT_NTC_TH_MAX_STEP  (300U) /* 平均TH相邻周期(400ms)允许最大升温(ADC raw), 超过视为采样异常 */
 
 static uint32_t g_bat_ntc_vbatt_acc = 0;   /* vbatt 累加器 */
 static uint32_t g_bat_ntc_th_acc    = 0;    /* th 累加器 */
