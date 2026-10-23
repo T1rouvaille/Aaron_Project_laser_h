@@ -10,7 +10,7 @@
  *         addr=0xFFFE → 写校准请求 flag 到 Data Flash, APP 下次启动执行校准
  *         其他        → 回显 'N'
  *   - READ_EEPROM ('F'): 不读任何字节, 根据已存地址响应:
- *         addr=0xFFFF → 发送 APP Data Flash datalog (192 bytes, 进 IBOX 时已缓存)
+ *         addr=0xFFFF → 发送 APP Data Flash datalog (320 bytes, 进 IBOX 时已缓存)
  *         其他        → 仅发 ETX
  *   - CHANGE_BAUD ('*'): 回显 '*', 切高速波特率
  *
@@ -143,7 +143,7 @@ static void honcho_loop(void)
     g_timer_enabled = false;
     g_timer0.p_api->stop(g_timer0.p_ctrl);
 
-    /* 进入 IBOX 时一次性从 Data Flash 读取 APP datalog (192 bytes) 到 RAM 缓存,
+    /* 进入 IBOX 时一次性从 Data Flash 读取 APP datalog (320 bytes) 到 RAM 缓存,
      * 后续 'F' READ_EEPROM 直接从缓存 memcpy, 无需重复读 Flash. */
     memcpy(g_datalog_buf, (const void *)FLASH_DF_BASE_ADDR, DATALOG_SIZE);
 

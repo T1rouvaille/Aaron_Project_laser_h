@@ -87,8 +87,8 @@
 /*  UBOX 收到 Honcho 校准命令后写此 flag, APP 启动时检测并执行校准      */
 /* ================================================================== */
 #define FLASH_DF_BASE_ADDR          0x40100000U    /* RA2E1 Data Flash 基地址 */
-#define DATALOG_SIZE                192U            /* Data Flash datalog: 3 blocks × 64 bytes */
-#define CALIB_REQ_FLAG_OFFSET       12U             /* 第1块 offset 12 (校准数据 reserved 之后) */
+#define DATALOG_SIZE                320U            /* Data Flash datalog: 5 blocks × 64 bytes (平台化标准布局) */
+#define CALIB_REQ_FLAG_OFFSET       12U             /* 第1块 offset 12 (校准请求 flag, 固定不可移动) */
 #define CALIB_REQ_FLAG_ADDR         (FLASH_DF_BASE_ADDR + CALIB_REQ_FLAG_OFFSET)
 #define CALIB_REQ_FLAG_MAGIC        0xCA11B000U     /* "CALIB" 谐音 */
 
