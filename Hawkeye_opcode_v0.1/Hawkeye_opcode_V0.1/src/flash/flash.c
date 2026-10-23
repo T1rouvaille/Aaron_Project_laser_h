@@ -6,27 +6,74 @@
 #include "string.h"
 
 /* ======================================================================
- *  统一128字节缓冲（覆盖第1块+第2块）
- *  buf[0~63]  = 第1块：校准 + 参考电压 + 关机日志
- *  buf[64~127] = 第2块：运行统计
+ *  平台化 Data Flash 缓冲区（384 字节 = 6 块）
+ *    buf[0..319]   = 标准 datalog（320 字节，5 块），boot 'F' 读取
+ *    buf[320..383] = flash_devinfo_t（版本/设备信息，1 块，仅 APP 内部）
  * ====================================================================== */
 static uint8_t g_flash_buf[FLASH_TOTAL_SIZE];
 
 /* ======================================================================
- *  内部辅助：从Flash把两块全部读入缓冲
+ *  内部辅助：小端字节读写（RA2E1 Cortex-M23 不支持非对齐访问，逐字节安全）
+ * ====================================================================== */
+static void buf_w16(uint8_t *buf, uint32_t off, uint16_t v)
+{
+    buf[off]     = (uint8_t)(v & 0xFFU);
+    buf[off + 1] = (uint8_t)((v >> 8) & 0xFFU);
+}
+
+static void buf_w32(uint8_t *buf, uint32_t off, uint32_t v)
+{
+    buf[off]     = (uint8_t)(v & 0xFFU);
+    buf[off + 1] = (uint8_t)((v >> 8)  & 0xFFU);
+    buf[off + 2] = (uint8_t)((v >> 16) & 0xFFU);
+    buf[off + 3] = (uint8_t)((v >> 24) & 0xFFU);
+}
+
+static uint16_t buf_r16(const uint8_t *buf, uint32_t off)
+{
+    return (uint16_t)((uint16_t)buf[off] | ((uint16_t)buf[off + 1] << 8));
+}
+
+static uint32_t buf_r32(const uint8_t *buf, uint32_t off)
+{
+    return (uint32_t)buf[off]
+         | ((uint32_t)buf[off + 1] << 8)
+         | ((uint32_t)buf[off + 2] << 16)
+         | ((uint32_t)buf[off + 3] << 24);
+}
+
+/* 直接从 Data Flash 读取（load 路径，无需先载入缓冲） */
+static uint16_t flash_rd16(uint32_t off)
+{
+    const uint8_t *p = (const uint8_t *)(FLASH_BLOCK_CALIBRATION + off);
+    return (uint16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
+}
+
+static uint32_t flash_rd32(uint32_t off)
+{
+    const uint8_t *p = (const uint8_t *)(FLASH_BLOCK_CALIBRATION + off);
+    return (uint32_t)p[0]
+         | ((uint32_t)p[1] << 8)
+         | ((uint32_t)p[2] << 16)
+         | ((uint32_t)p[3] << 24);
+}
+
+/* RAM uint32 计数 → Flash uint16 字段（饱和到 0xFFFF，避免回绕） */
+static uint16_t u32_to_u16(uint32_t v)
+{
+    return (v > 0xFFFFU) ? 0xFFFFU : (uint16_t)v;
+}
+
+/* ======================================================================
+ *  内部辅助：缓冲 <-> Flash
  * ====================================================================== */
 static void flash_buf_load(void)
 {
     memcpy(g_flash_buf,
            (const void *)FLASH_BLOCK_CALIBRATION,
-           FLASH_TOTAL_SIZE);   /* 自动跟随 FLASH_TOTAL_SIZE = 192 */
+           FLASH_TOTAL_SIZE);   /* 384 字节（6 块） */
 }
 
-
-/* ======================================================================
- *  内部辅助：把缓冲里的两块一次性擦除并写回Flash
- *  RA2E1 R_FLASH_LP_Erase 支持连续多块：传块数=2，一次擦除128字节
- * ====================================================================== */
 static fsp_err_t flash_buf_flush(void)
 {
     fsp_err_t err;
@@ -34,7 +81,7 @@ static fsp_err_t flash_buf_flush(void)
     wdt_feed();  /* Flash擦除前喂狗, 防止WDT超时 */
     err = R_FLASH_LP_Erase(&g_flash0_ctrl,
                            FLASH_BLOCK_CALIBRATION,
-                           FLASH_TOTAL_BLOCKS);   /* 3块一次擦除 */
+                           FLASH_TOTAL_BLOCKS);   /* 6 块一次擦除 */
     if (err != FSP_SUCCESS)
     {
         uart9_send_blocking("+RESP:FLASH ERASE FAIL\r\n");
@@ -45,7 +92,7 @@ static fsp_err_t flash_buf_flush(void)
     err = R_FLASH_LP_Write(&g_flash0_ctrl,
                            (uint32_t)g_flash_buf,
                            FLASH_BLOCK_CALIBRATION,
-                           FLASH_TOTAL_SIZE);     /* 192字节一次写入 */
+                           FLASH_TOTAL_SIZE);     /* 384 字节一次写入 */
     if (err != FSP_SUCCESS)
     {
         uart9_send_blocking("+RESP:FLASH WRITE FAIL\r\n");
@@ -53,6 +100,147 @@ static fsp_err_t flash_buf_flush(void)
     }
 
     return FSP_SUCCESS;
+}
+
+/* ======================================================================
+ *  内部辅助：datalog 头部校验 / 魔数 / 首次初始化
+ * ====================================================================== */
+
+/** @brief datalog 是否有效（@0 魔数匹配） */
+static bool flash_datalog_valid(void)
+{
+    return flash_rd32(FLASH_OFFSET_HDR_MAGIC) == FLASH_DATALOG_MAGIC;
+}
+
+/** @brief 在缓冲中写入 datalog 头部魔数（所有 save 函数调用） */
+static void flash_buf_set_magic(void)
+{
+    buf_w32(g_flash_buf, FLASH_OFFSET_HDR_MAGIC, FLASH_DATALOG_MAGIC);
+}
+
+/**
+ * @brief 首次写 datalog 前的初始化：若魔数无效（新/已擦除），
+ *        先清零整个 datalog 区域（0..319），使标准中 Hawkeye 未使用的
+ *        字段保持 0（而非 0xFF）。同时保留校准请求 flag（@12..15），
+ *        避免覆盖 UBOX 待处理的校准请求。
+ */
+static void flash_buf_prepare_datalog(void)
+{
+    if (buf_r32(g_flash_buf, FLASH_OFFSET_HDR_MAGIC) == FLASH_DATALOG_MAGIC)
+        return;   /* 已初始化，无需清零 */
+
+    uint32_t calib_req = buf_r32(g_flash_buf, FLASH_OFFSET_CALIB_REQ);
+    memset(g_flash_buf, 0, FLASH_DATALOG_SIZE);
+    buf_w32(g_flash_buf, FLASH_OFFSET_CALIB_REQ, calib_req);
+}
+
+/* ======================================================================
+ *  关机原因 → Protection 段偏移（uint16）
+ *  count[] 下标 = power_off_reason_t 枚举值 - 1（跳过 0=LASER_HOTPLUG）
+ * ====================================================================== */
+static const uint16_t poweroff_prot_offsets[POWEROFF_REASON_COUNT] = {
+    FLASH_PROT_BATTERY_UV,     /* count[0] = BATTERY_LOW(1)      → @32 */
+    FLASH_PROT_MAIN_SW_OFF,    /* count[1] = LOCK_SW_RUNTIME(2)  → @34 */
+    FLASH_PROT_MEMS_ERROR,     /* count[2] = I2C_FAIL(3)         → @36 */
+    FLASH_PROT_NTC_HOT_PACK,   /* count[3] = OVERHEAT(4)         → @30 */
+    FLASH_PROT_IDLE_TIMEOUT,   /* count[4] = IDLE_TIMEOUT(5)     → @38 */
+};
+
+/* ======================================================================
+ *  内部辅助：stats 的 scatter（RAM 结构体 → 标准偏移）/ gather（反向）
+ * ====================================================================== */
+static void flash_scatter_stats(uint8_t *buf, const flash_stats_t *stats)
+{
+    /* Header */
+    buf_w32(buf, FLASH_OFFSET_HDR_TOTAL_RUN, stats->total_run_s);
+
+    /* Time 段 */
+    buf_w32(buf, FLASH_TIME_H1,      stats->h_only_s);
+    buf_w32(buf, FLASH_TIME_V1,      stats->v1_only_s);
+    buf_w32(buf, FLASH_TIME_V2,      stats->v2_only_s);
+    buf_w32(buf, FLASH_TIME_H1V1,    stats->v1_h_only_s);
+    buf_w32(buf, FLASH_TIME_H1V2,    stats->v2_h_only_s);
+    buf_w32(buf, FLASH_TIME_V1V2,    stats->v1_v2_only_s);
+    buf_w32(buf, FLASH_TIME_H1V1V2,  stats->all3_laser_s);
+    buf_w32(buf, FLASH_TIME_TILT_0_4,   stats->angle_0_4_s);
+    buf_w32(buf, FLASH_TIME_TILT_4_10,  stats->angle_4_10_s);
+    buf_w32(buf, FLASH_TIME_TILT_10_90, stats->angle_10_90_s);
+
+    /* Slope 段（激光组合 × 倾角>4° 交叉时长，仅 7 个非 H2 组合有效） */
+    buf_w32(buf, FLASH_SLOPE_H1,     stats->slope_h_s);
+    buf_w32(buf, FLASH_SLOPE_V1,     stats->slope_v1_s);
+    buf_w32(buf, FLASH_SLOPE_V2,     stats->slope_v2_s);
+    buf_w32(buf, FLASH_SLOPE_H1V1,   stats->slope_v1_h_s);
+    buf_w32(buf, FLASH_SLOPE_H1V2,   stats->slope_v2_h_s);
+    buf_w32(buf, FLASH_SLOPE_V1V2,   stats->slope_v1_v2_s);
+    buf_w32(buf, FLASH_SLOPE_H1V1V2, stats->slope_all3_s);
+
+    /* Cycle 段（laser_on_cnt: [0]=H, [1]=V1, [2]=V2） */
+    buf_w32(buf, FLASH_CYCLE_HOR_LASER, stats->laser_on_cnt[0]);
+    buf_w32(buf, FLASH_CYCLE_V1_LASER,  stats->laser_on_cnt[1]);
+    buf_w32(buf, FLASH_CYCLE_V2_LASER,  stats->laser_on_cnt[2]);
+
+    /* Optical 段（校准目标功率常量, 固定值） */
+    buf_w32(buf, FLASH_OPT_H,  (uint32_t)POWCAL_TARGET_H);
+    buf_w32(buf, FLASH_OPT_V1, (uint32_t)POWCAL_TARGET_V1);
+    buf_w32(buf, FLASH_OPT_V2, (uint32_t)POWCAL_TARGET_V2);
+
+    /* temp 段（次数, uint16, 饱和） */
+    buf_w16(buf, FLASH_TEMP_HIGH,   u32_to_u16(stats->temp_high_cnt));
+    buf_w16(buf, FLASH_TEMP_NORMAL, u32_to_u16(stats->temp_normal_cnt));
+    buf_w16(buf, FLASH_TEMP_LOW,    u32_to_u16(stats->temp_low_cnt));
+
+    /* Protection 段新增检测计数（uint16, 饱和） */
+    buf_w16(buf, FLASH_PROT_NTC_HOT_LASER,   u32_to_u16(stats->ntc_hot_laser));
+    buf_w16(buf, FLASH_PROT_NTC_COLD_LASER,  u32_to_u16(stats->ntc_cold_laser));
+    buf_w16(buf, FLASH_PROT_NTC_FROZEN_PACK, u32_to_u16(stats->ntc_frozen_pack));
+    buf_w16(buf, FLASH_PROT_H1_OVERCUR,      u32_to_u16(stats->h1_over_cur));
+    buf_w16(buf, FLASH_PROT_V1_OVERCUR,      u32_to_u16(stats->v1_over_cur));
+    buf_w16(buf, FLASH_PROT_V2_OVERCUR,      u32_to_u16(stats->v2_over_cur));
+}
+
+static void flash_gather_stats(flash_stats_t *stats)
+{
+    memset(stats, 0, sizeof(*stats));
+    stats->magic = FLASH_STATS_MAGIC;
+
+    stats->total_run_s   = flash_rd32(FLASH_OFFSET_HDR_TOTAL_RUN);
+    stats->h_only_s      = flash_rd32(FLASH_TIME_H1);
+    stats->v1_only_s     = flash_rd32(FLASH_TIME_V1);
+    stats->v2_only_s     = flash_rd32(FLASH_TIME_V2);
+    stats->v1_h_only_s   = flash_rd32(FLASH_TIME_H1V1);
+    stats->v2_h_only_s   = flash_rd32(FLASH_TIME_H1V2);
+    stats->v1_v2_only_s  = flash_rd32(FLASH_TIME_V1V2);
+    stats->all3_laser_s  = flash_rd32(FLASH_TIME_H1V1V2);
+    stats->angle_0_4_s   = flash_rd32(FLASH_TIME_TILT_0_4);
+    stats->angle_4_10_s  = flash_rd32(FLASH_TIME_TILT_4_10);
+    stats->angle_10_90_s = flash_rd32(FLASH_TIME_TILT_10_90);
+
+    /* Slope 段 */
+    stats->slope_h_s     = flash_rd32(FLASH_SLOPE_H1);
+    stats->slope_v1_s    = flash_rd32(FLASH_SLOPE_V1);
+    stats->slope_v2_s    = flash_rd32(FLASH_SLOPE_V2);
+    stats->slope_v1_h_s  = flash_rd32(FLASH_SLOPE_H1V1);
+    stats->slope_v2_h_s  = flash_rd32(FLASH_SLOPE_H1V2);
+    stats->slope_v1_v2_s = flash_rd32(FLASH_SLOPE_V1V2);
+    stats->slope_all3_s  = flash_rd32(FLASH_SLOPE_H1V1V2);
+
+    stats->laser_on_cnt[0] = flash_rd32(FLASH_CYCLE_HOR_LASER);
+    stats->laser_on_cnt[1] = flash_rd32(FLASH_CYCLE_V1_LASER);
+    stats->laser_on_cnt[2] = flash_rd32(FLASH_CYCLE_V2_LASER);
+
+    /* temp 段（次数, uint16 → uint32） */
+    stats->temp_high_cnt   = (uint32_t)flash_rd16(FLASH_TEMP_HIGH);
+    stats->temp_normal_cnt = (uint32_t)flash_rd16(FLASH_TEMP_NORMAL);
+    stats->temp_low_cnt    = (uint32_t)flash_rd16(FLASH_TEMP_LOW);
+
+    /* Protection 段新增检测计数（uint16 → uint32） */
+    stats->ntc_hot_laser   = (uint32_t)flash_rd16(FLASH_PROT_NTC_HOT_LASER);
+    stats->ntc_cold_laser  = (uint32_t)flash_rd16(FLASH_PROT_NTC_COLD_LASER);
+    stats->ntc_frozen_pack = (uint32_t)flash_rd16(FLASH_PROT_NTC_FROZEN_PACK);
+    stats->h1_over_cur = (uint32_t)flash_rd16(FLASH_PROT_H1_OVERCUR);
+    stats->v1_over_cur = (uint32_t)flash_rd16(FLASH_PROT_V1_OVERCUR);
+    stats->v2_over_cur = (uint32_t)flash_rd16(FLASH_PROT_V2_OVERCUR);
 }
 
 /* ======================================================================
@@ -64,19 +252,22 @@ fsp_err_t flash_init(void)
 }
 
 /* ======================================================================
- *  校准数据
+ *  校准数据（MEMS 偏移 → Offset 段 @244/246/248, int16）
  * ====================================================================== */
 fsp_err_t flash_save_calibration(int16_t ox, int16_t oy, int16_t oz)
 {
     flash_buf_load();
+    flash_buf_prepare_datalog();
 
-    flash_calib_data_t calib;
-    calib.magic    = FLASH_CALIB_MAGIC;
-    calib.offset_x = ox;
-    calib.offset_y = oy;
-    calib.offset_z = oz;
-    calib.reserved = 0;
-    memcpy(g_flash_buf + FLASH_OFFSET_CALIB, &calib, sizeof(flash_calib_data_t));
+    buf_w16(g_flash_buf, FLASH_OFFSET_MEMS_X, (uint16_t)ox);
+    buf_w16(g_flash_buf, FLASH_OFFSET_MEMS_Y, (uint16_t)oy);
+    buf_w16(g_flash_buf, FLASH_OFFSET_MEMS_Z, (uint16_t)oz);
+
+    /* MEMS Reset Count +1（读-改-写 @250，每完成一次校准递增） */
+    uint32_t reset_cnt = buf_r32(g_flash_buf, FLASH_OFFSET_MEMS_RESET) + 1U;
+    buf_w32(g_flash_buf, FLASH_OFFSET_MEMS_RESET, reset_cnt);
+
+    flash_buf_set_magic();
 
     /* 校准数据写入时同步清除 UBOX 的校准请求 flag (offset 12-15) */
     memset(g_flash_buf + FLASH_OFFSET_CALIB_REQ, 0xFF, 4U);
@@ -84,17 +275,55 @@ fsp_err_t flash_save_calibration(int16_t ox, int16_t oy, int16_t oz)
     return flash_buf_flush();
 }
 
+fsp_err_t flash_save_mems_model(const char *model)
+{
+    if (model == NULL) return FSP_ERR_INVALID_ARGUMENT;
+
+    flash_buf_load();
+    flash_buf_prepare_datalog();
+
+    /* MEMS Model：取前 8 字节写入 @254（不足部分补 0） */
+    memset(g_flash_buf + FLASH_OFFSET_MEMS_MODEL, 0, 8U);
+    for (uint8_t i = 0; i < 8U; i++)
+    {
+        if (model[i] == '\0') break;
+        g_flash_buf[FLASH_OFFSET_MEMS_MODEL + i] = (uint8_t)model[i];
+    }
+
+    flash_buf_set_magic();
+    return flash_buf_flush();
+}
+
 fsp_err_t flash_load_calibration(int16_t *ox, int16_t *oy, int16_t *oz)
 {
-    const flash_calib_data_t *p =
-        (const flash_calib_data_t *)(FLASH_BLOCK_CALIBRATION + FLASH_OFFSET_CALIB);
-
-    if (p->magic != FLASH_CALIB_MAGIC)
+    if (!flash_datalog_valid())
         return FSP_ERR_NOT_INITIALIZED;
 
-    *ox = p->offset_x;
-    *oy = p->offset_y;
-    *oz = p->offset_z;
+    *ox = (int16_t)flash_rd16(FLASH_OFFSET_MEMS_X);
+    *oy = (int16_t)flash_rd16(FLASH_OFFSET_MEMS_Y);
+    *oz = (int16_t)flash_rd16(FLASH_OFFSET_MEMS_Z);
+    return FSP_SUCCESS;
+}
+
+fsp_err_t flash_load_mems_reset_count(uint32_t *count)
+{
+    if (!flash_datalog_valid())
+        return FSP_ERR_NOT_INITIALIZED;
+
+    *count = flash_rd32(FLASH_OFFSET_MEMS_RESET);
+    return FSP_SUCCESS;
+}
+
+fsp_err_t flash_load_mems_model(uint8_t model[8])
+{
+    if (!flash_datalog_valid())
+        return FSP_ERR_NOT_INITIALIZED;
+
+    const uint8_t *p = (const uint8_t *)(FLASH_BLOCK_CALIBRATION + FLASH_OFFSET_MEMS_MODEL);
+    for (uint8_t i = 0; i < 8U; i++)
+    {
+        model[i] = p[i];
+    }
     return FSP_SUCCESS;
 }
 
@@ -127,109 +356,120 @@ fsp_err_t flash_clear_calib_request(void)
 }
 
 /* ======================================================================
- *  参考电压
+ *  参考电压（int32 RAM → Reference 段 @262/266/268, uint16）
+ *    H1(262) ← ref_side(H),  V1(266) ← ref_horiz(V1),  V2(268) ← ref_front(V2)
  * ====================================================================== */
 fsp_err_t flash_save_reference(int32_t front, int32_t side, int32_t horiz)
 {
     flash_buf_load();
+    flash_buf_prepare_datalog();
 
-    flash_ref_data_t ref;
-    ref.magic     = FLASH_REF_MAGIC;
-    ref.ref_front = front;
-    ref.ref_side  = side;
-    ref.ref_horiz = horiz;
-    memcpy(g_flash_buf + FLASH_OFFSET_REF, &ref, sizeof(flash_ref_data_t));
+    buf_w16(g_flash_buf, FLASH_REF_H1, (uint16_t)side);   /* H  ← ref_side  */
+    buf_w16(g_flash_buf, FLASH_REF_H2, 0);                /* H2 未使用，保持 0 */
+    buf_w16(g_flash_buf, FLASH_REF_V1, (uint16_t)horiz);  /* V1 ← ref_horiz */
+    buf_w16(g_flash_buf, FLASH_REF_V2, (uint16_t)front);  /* V2 ← ref_front */
+    flash_buf_set_magic();
 
     return flash_buf_flush();
 }
 
 fsp_err_t flash_load_reference(int32_t *front, int32_t *side, int32_t *horiz)
 {
-    const flash_ref_data_t *p =
-        (const flash_ref_data_t *)(FLASH_BLOCK_CALIBRATION + FLASH_OFFSET_REF);
-
-    if (p->magic != FLASH_REF_MAGIC)
+    if (!flash_datalog_valid())
         return FSP_ERR_NOT_INITIALIZED;
 
-    *front = p->ref_front;
-    *side  = p->ref_side;
-    *horiz = p->ref_horiz;
+    *front = (int32_t)flash_rd16(FLASH_REF_V2);  /* V2 ← ref_front */
+    *side  = (int32_t)flash_rd16(FLASH_REF_H1);  /* H  ← ref_side  */
+    *horiz = (int32_t)flash_rd16(FLASH_REF_V1);  /* V1 ← ref_horiz */
     return FSP_SUCCESS;
 }
 
 /* ======================================================================
- *  关机日志
+ *  关机日志（Protection 段, uint16；total = 各原因计数之和）
  * ====================================================================== */
 fsp_err_t flash_load_poweroff_log(flash_poweroff_log_t *log)
 {
     if (log == NULL) return FSP_ERR_INVALID_ARGUMENT;
 
-    const flash_poweroff_log_t *p =
-        (const flash_poweroff_log_t *)(FLASH_BLOCK_CALIBRATION + FLASH_OFFSET_POWEROFF);
-
-    if (p->magic != FLASH_POWEROFF_MAGIC)
+    if (!flash_datalog_valid())
     {
-        memset(log, 0, sizeof(flash_poweroff_log_t));
+        memset(log, 0, sizeof(*log));
         log->magic = FLASH_POWEROFF_MAGIC;
         return FSP_ERR_NOT_INITIALIZED;
     }
 
-    memcpy(log, p, sizeof(flash_poweroff_log_t));
+    memset(log, 0, sizeof(*log));
+    log->magic = FLASH_POWEROFF_MAGIC;
+    log->total = 0;
+    for (uint8_t i = 0; i < POWEROFF_REASON_COUNT; i++)
+    {
+        log->count[i] = (uint32_t)flash_rd16(poweroff_prot_offsets[i]);
+        log->total += log->count[i];
+    }
     return FSP_SUCCESS;
 }
 
 fsp_err_t flash_record_poweroff(uint32_t reason)
 {
     flash_buf_load();
+    flash_buf_prepare_datalog();
 
     flash_poweroff_log_t log;
-    memcpy(&log, g_flash_buf + FLASH_OFFSET_POWEROFF, sizeof(flash_poweroff_log_t));
-
-    if (log.magic != FLASH_POWEROFF_MAGIC)
+    memset(&log, 0, sizeof(log));
+    log.magic = FLASH_POWEROFF_MAGIC;
+    log.total = 0;
+    for (uint8_t i = 0; i < POWEROFF_REASON_COUNT; i++)
     {
-        memset(&log, 0, sizeof(flash_poweroff_log_t));
-        log.magic = FLASH_POWEROFF_MAGIC;
+        log.count[i] = (uint32_t)buf_r16(g_flash_buf, poweroff_prot_offsets[i]);
+        log.total += log.count[i];
     }
 
-    log.total++;
-    if (reason < POWEROFF_REASON_COUNT)
-        log.count[reason]++;
+    /* 仅统计 1..5 的关机原因；0=LASER_HOTPLUG 不再计数 */
+    if (reason >= 1U && reason <= POWEROFF_REASON_COUNT)
+    {
+        log.count[reason - 1U]++;
+        log.total++;
+    }
 
-    memcpy(g_flash_buf + FLASH_OFFSET_POWEROFF, &log, sizeof(flash_poweroff_log_t));
+    for (uint8_t i = 0; i < POWEROFF_REASON_COUNT; i++)
+        buf_w16(g_flash_buf, poweroff_prot_offsets[i], (uint16_t)log.count[i]);
 
+    /* Cycle 段: 主开关/锁定开关周期次数 = LOCK_SW 关机计数 (与 @34 同源) */
+    buf_w32(g_flash_buf, FLASH_CYCLE_MAIN_SW, log.count[1]);
+    buf_w32(g_flash_buf, FLASH_CYCLE_LOCK_SW,  log.count[1]);
+
+    flash_buf_set_magic();
     return flash_buf_flush();
 }
 
 fsp_err_t flash_clear_poweroff_log(void)
 {
     flash_buf_load();
+    for (uint8_t i = 0; i < POWEROFF_REASON_COUNT; i++)
+        buf_w16(g_flash_buf, poweroff_prot_offsets[i], 0);
 
-    flash_poweroff_log_t log;
-    memset(&log, 0, sizeof(flash_poweroff_log_t));
-    log.magic = FLASH_POWEROFF_MAGIC;
-    memcpy(g_flash_buf + FLASH_OFFSET_POWEROFF, &log, sizeof(flash_poweroff_log_t));
+    /* Cycle 段主开关/锁定开关周期次数同源, 一并清零 */
+    buf_w32(g_flash_buf, FLASH_CYCLE_MAIN_SW, 0);
+    buf_w32(g_flash_buf, FLASH_CYCLE_LOCK_SW,  0);
 
     return flash_buf_flush();
 }
 
 /* ======================================================================
- *  运行统计（偏移64，在第2块）
+ *  运行统计（Time/Cycle 段，scatter/gather 映射）
  * ====================================================================== */
 fsp_err_t flash_load_stats(flash_stats_t *stats)
 {
     if (stats == NULL) return FSP_ERR_INVALID_ARGUMENT;
 
-    const flash_stats_t *p =
-        (const flash_stats_t *)(FLASH_BLOCK_CALIBRATION + FLASH_OFFSET_STATS);
-
-    if (p->magic != FLASH_STATS_MAGIC)
+    if (!flash_datalog_valid())
     {
-        memset(stats, 0, sizeof(flash_stats_t));
+        memset(stats, 0, sizeof(*stats));
         stats->magic = FLASH_STATS_MAGIC;
         return FSP_ERR_NOT_INITIALIZED;
     }
 
-    memcpy(stats, p, sizeof(flash_stats_t));
+    flash_gather_stats(stats);
     return FSP_SUCCESS;
 }
 
@@ -238,7 +478,9 @@ fsp_err_t flash_save_stats(const flash_stats_t *stats)
     if (stats == NULL) return FSP_ERR_INVALID_ARGUMENT;
 
     flash_buf_load();
-    memcpy(g_flash_buf + FLASH_OFFSET_STATS, stats, sizeof(flash_stats_t));
+    flash_buf_prepare_datalog();
+    flash_scatter_stats(g_flash_buf, stats);
+    flash_buf_set_magic();
 
     return flash_buf_flush();
 }
@@ -248,9 +490,8 @@ fsp_err_t flash_clear_stats(void)
     flash_buf_load();
 
     flash_stats_t stats;
-    memset(&stats, 0, sizeof(flash_stats_t));
-    stats.magic = FLASH_STATS_MAGIC;
-    memcpy(g_flash_buf + FLASH_OFFSET_STATS, &stats, sizeof(flash_stats_t));
+    memset(&stats, 0, sizeof(stats));
+    flash_scatter_stats(g_flash_buf, &stats);
 
     return flash_buf_flush();
 }
@@ -261,34 +502,43 @@ fsp_err_t flash_clear_stats(void)
 fsp_err_t flash_save_poweroff_and_stats(uint32_t reason,
                                         const flash_stats_t *stats)
 {
-    /* 读入全部128字节 */
     flash_buf_load();
+    flash_buf_prepare_datalog();
 
-    /* ---- 更新关机日志 ---- */
+    /* ---- 更新关机日志 (Protection 段) ---- */
     flash_poweroff_log_t log;
-    memcpy(&log, g_flash_buf + FLASH_OFFSET_POWEROFF, sizeof(flash_poweroff_log_t));
-
-    if (log.magic != FLASH_POWEROFF_MAGIC)
+    memset(&log, 0, sizeof(log));
+    log.magic = FLASH_POWEROFF_MAGIC;
+    log.total = 0;
+    for (uint8_t i = 0; i < POWEROFF_REASON_COUNT; i++)
     {
-        memset(&log, 0, sizeof(flash_poweroff_log_t));
-        log.magic = FLASH_POWEROFF_MAGIC;
+        log.count[i] = (uint32_t)buf_r16(g_flash_buf, poweroff_prot_offsets[i]);
+        log.total += log.count[i];
     }
-    log.total++;
-    if (reason < POWEROFF_REASON_COUNT)
-        log.count[reason]++;
 
-    memcpy(g_flash_buf + FLASH_OFFSET_POWEROFF, &log, sizeof(flash_poweroff_log_t));
+    if (reason >= 1U && reason <= POWEROFF_REASON_COUNT)
+    {
+        log.count[reason - 1U]++;
+        log.total++;
+    }
 
-    /* ---- 更新统计数据 ---- */
+    for (uint8_t i = 0; i < POWEROFF_REASON_COUNT; i++)
+        buf_w16(g_flash_buf, poweroff_prot_offsets[i], (uint16_t)log.count[i]);
+
+    /* Cycle 段: 主开关/锁定开关周期次数 = LOCK_SW 关机计数 (与 @34 同源) */
+    buf_w32(g_flash_buf, FLASH_CYCLE_MAIN_SW, log.count[1]);
+    buf_w32(g_flash_buf, FLASH_CYCLE_LOCK_SW,  log.count[1]);
+
+    /* ---- 更新统计数据 (Time/Cycle 段) ---- */
     if (stats != NULL)
-        memcpy(g_flash_buf + FLASH_OFFSET_STATS, stats, sizeof(flash_stats_t));
+        flash_scatter_stats(g_flash_buf, stats);
 
-    /* ---- 一次 flush，两块一起写 ---- */
+    flash_buf_set_magic();
     return flash_buf_flush();
 }
 
 /* ======================================================================
- *  版本/设备信息
+ *  版本/设备信息（第 6 块, offset 320, 独立于 datalog）
  * ====================================================================== */
 fsp_err_t flash_load_devinfo(flash_devinfo_t *info)
 {
@@ -299,12 +549,12 @@ fsp_err_t flash_load_devinfo(flash_devinfo_t *info)
 
     if (p->magic != FLASH_DEVINFO_MAGIC)
     {
-        memset(info, 0, sizeof(flash_devinfo_t));
+        memset(info, 0, sizeof(*info));
         info->magic = FLASH_DEVINFO_MAGIC;
         return FSP_ERR_NOT_INITIALIZED;
     }
 
-    memcpy(info, p, sizeof(flash_devinfo_t));
+    memcpy(info, p, sizeof(*info));
     return FSP_SUCCESS;
 }
 
@@ -323,9 +573,9 @@ fsp_err_t flash_clear_devinfo(void)
     flash_buf_load();
 
     flash_devinfo_t info;
-    memset(&info, 0, sizeof(flash_devinfo_t));
+    memset(&info, 0, sizeof(info));
     info.magic = FLASH_DEVINFO_MAGIC;
-    memcpy(g_flash_buf + FLASH_OFFSET_DEVINFO, &info, sizeof(flash_devinfo_t));
+    memcpy(g_flash_buf + FLASH_OFFSET_DEVINFO, &info, sizeof(info));
 
     return flash_buf_flush();
 }
@@ -334,7 +584,7 @@ fsp_err_t flash_clear_devinfo(void)
 fsp_err_t flash_save_devinfo_from_config(void)
 {
     flash_devinfo_t info;
-    memset(&info, 0, sizeof(flash_devinfo_t));
+    memset(&info, 0, sizeof(info));
 
     info.magic    = FLASH_DEVINFO_MAGIC;
 
@@ -380,14 +630,14 @@ fsp_err_t flash_save_laser_state(uint8_t mask)
 {
     flash_devinfo_t info;
     fsp_err_t err = flash_load_devinfo(&info);
-    
+
     if (err != FSP_SUCCESS && err != FSP_ERR_NOT_INITIALIZED) {
         return err;
     }
-    
+
     // 更新激光状态
     info.laser_on_mask = mask;
-    
+
     // 保存到Flash
     return flash_save_devinfo(&info);
 }
@@ -400,13 +650,14 @@ uint8_t flash_load_laser_state(void)
 {
     flash_devinfo_t info;
     fsp_err_t err = flash_load_devinfo(&info);
-    
+
     if (err != FSP_SUCCESS) {
         return 0;  // 默认全关
     }
-    
+
     return info.laser_on_mask;
 }
+
 fsp_err_t flash_clear_all(void)
 {
     memset(g_flash_buf, 0xFF, FLASH_TOTAL_SIZE);
@@ -417,4 +668,3 @@ fsp_err_t flash_clear_all(void)
 
     return err;
 }
-

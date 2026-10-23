@@ -44,18 +44,141 @@ void stats_laser_key_press(uint8_t ch)
 }
 
 /* ======================================================================
+ *  stats_protection_event — 记录一次保护检测事件（边沿触发）
+ * ====================================================================== */
+void stats_protection_event(stats_prot_event_t ev)
+{
+    switch (ev)
+    {
+        case STATS_PROT_NTC_HOT_LASER:
+            g_stats.ntc_hot_laser++;
+            break;
+        case STATS_PROT_NTC_COLD_LASER:
+            g_stats.ntc_cold_laser++;
+            break;
+        case STATS_PROT_NTC_FROZEN_PACK:
+            g_stats.ntc_frozen_pack++;
+            break;
+        case STATS_PROT_H1_OVERCUR:
+            g_stats.h1_over_cur++;
+            break;
+        case STATS_PROT_V1_OVERCUR:
+            g_stats.v1_over_cur++;
+            break;
+        case STATS_PROT_V2_OVERCUR:
+            g_stats.v2_over_cur++;
+            break;
+        default:
+            break;
+    }
+}
+
+/* ======================================================================
+ *  temp 段温度分区状态机（带回差, 单位=次数）
+ *
+ *  分区定义（控制板 NTC ADC, 温度越高 ADC 越小）：
+ *    high   → ADC <  NTC_TEMP_HIGH_ENTER_ADC (2004, >40°C)
+ *    normal → ADC ∈ [2004, 2850] (0~40°C)
+ *    low    → ADC >  NTC_TEMP_LOW_ENTER_ADC  (2850, <0°C)
+ *
+ *  回差 NTC_TEMP_HYSTERESIS(400)：进入分区用严格阈值, 退出需跨过回差带,
+ *  避免温度在阈值附近抖动导致反复计数。
+ * ====================================================================== */
+typedef enum
+{
+    TEMP_BAND_NORMAL = 0,
+    TEMP_BAND_HIGH,
+    TEMP_BAND_LOW,
+} temp_band_t;
+
+static temp_band_t s_temp_band = TEMP_BAND_NORMAL;
+
+static temp_band_t temp_band_classify(uint16_t ntc_adc)
+{
+    if (ntc_adc < NTC_TEMP_HIGH_ENTER_ADC) return TEMP_BAND_HIGH;
+    if (ntc_adc > NTC_TEMP_LOW_ENTER_ADC)  return TEMP_BAND_LOW;
+    return TEMP_BAND_NORMAL;
+}
+
+static void temp_band_count(temp_band_t band)
+{
+    switch (band)
+    {
+        case TEMP_BAND_HIGH:   g_stats.temp_high_cnt++;   break;
+        case TEMP_BAND_LOW:    g_stats.temp_low_cnt++;    break;
+        case TEMP_BAND_NORMAL:
+        default:               g_stats.temp_normal_cnt++; break;
+    }
+}
+
+void stats_temp_band_init(uint16_t ntc_adc)
+{
+    s_temp_band = temp_band_classify(ntc_adc);
+    temp_band_count(s_temp_band);
+}
+
+void stats_temp_band_shutdown(uint16_t ntc_adc)
+{
+    temp_band_count(temp_band_classify(ntc_adc));
+}
+
+void stats_temp_band_track(uint16_t ntc_adc)
+{
+    switch (s_temp_band)
+    {
+        case TEMP_BAND_HIGH:
+            /* 温度回落到 <40°C-回差 → 回 normal */
+            if (ntc_adc > (NTC_TEMP_HIGH_ENTER_ADC + NTC_TEMP_HYSTERESIS))
+            {
+                s_temp_band = TEMP_BAND_NORMAL;
+                temp_band_count(TEMP_BAND_NORMAL);
+            }
+            break;
+
+        case TEMP_BAND_LOW:
+            /* 温度回升到 >0°C+回差 → 回 normal */
+            if (ntc_adc < (NTC_TEMP_LOW_ENTER_ADC - NTC_TEMP_HYSTERESIS))
+            {
+                s_temp_band = TEMP_BAND_NORMAL;
+                temp_band_count(TEMP_BAND_NORMAL);
+            }
+            break;
+
+        case TEMP_BAND_NORMAL:
+        default:
+            /* 变热越过 40°C → high */
+            if (ntc_adc < NTC_TEMP_HIGH_ENTER_ADC)
+            {
+                s_temp_band = TEMP_BAND_HIGH;
+                temp_band_count(TEMP_BAND_HIGH);
+            }
+            /* 变冷越过 0°C → low */
+            else if (ntc_adc > NTC_TEMP_LOW_ENTER_ADC)
+            {
+                s_temp_band = TEMP_BAND_LOW;
+                temp_band_count(TEMP_BAND_LOW);
+            }
+            break;
+    }
+}
+
+/* ======================================================================
  *  stats_tick_1s — 每秒调用一次，更新所有时长
  * ====================================================================== */
 void stats_tick_1s(const uint8_t laser_on[3],
                    uint8_t       angle_mode,
-                   bool          bat_state_low)
+                   bool          bat_state_low,
+                   uint16_t      ntc_adc)
 {
     (void)bat_state_low; /* 不再使用 LED 闪烁时长统计 */
 
-    /* 激光通道定义：[V1, V2, H] */
-    uint8_t v1 = laser_on[0];
-    uint8_t v2 = laser_on[1];
-    uint8_t h = laser_on[2];
+    /* 激光通道定义：gLaserOn 实际顺序为 [H, V1, V2]（与 power_calibration/bsp_adc/bsp_agt 一致） */
+    uint8_t h  = laser_on[0];
+    uint8_t v1 = laser_on[1];
+    uint8_t v2 = laser_on[2];
+
+    /* Slope = 倾角 > 4°（即 4~10° 或 >10° 模式） */
+    bool slope = (angle_mode == ANGLE_MODE_4_10) || (angle_mode == ANGLE_MODE_10_90);
 
     /* 1. 设备总运行时长 */
     g_stats.total_run_s++;
@@ -102,6 +225,18 @@ void stats_tick_1s(const uint8_t laser_on[3],
         g_stats.all3_laser_s++;
     }
 
+    /* 9b. Slope 段：激光组合 × (倾角 > 4°) 交叉时长（仅 7 个非 H2 组合） */
+    if (slope)
+    {
+        if (!v1 && !v2 && h)  { g_stats.slope_h_s++; }      /* H1       @112 */
+        if (v1 && !v2 && !h)  { g_stats.slope_v1_s++; }     /* V1       @120 */
+        if (!v1 && v2 && !h)  { g_stats.slope_v2_s++; }     /* V2       @124 */
+        if (v1 && !v2 && h)   { g_stats.slope_v1_h_s++; }   /* H1&V1    @132 */
+        if (!v1 && v2 && h)   { g_stats.slope_v2_h_s++; }   /* H1&V2    @136 */
+        if (v1 && v2 && !h)   { g_stats.slope_v1_v2_s++; }  /* V1&V2    @148 */
+        if (v1 && v2 && h)    { g_stats.slope_all3_s++; }   /* H1&V1&V2 @160 */
+    }
+
     /* 10. 角度模式时长 */
     switch (angle_mode)
     {
@@ -116,9 +251,12 @@ void stats_tick_1s(const uint8_t laser_on[3],
             break;
         case ANGLE_MODE_UNCAL:
         default:
-            g_stats.uncal_run_s++;
+            g_stats.angle_0_4_s++;   /* 未校准模式按 0-4° 计（无独立 uncal 概念） */
             break;
     }
+
+    /* 11. temp 段：温度分区切换跟踪（带回差, 单位=次数, 不依赖激光状态） */
+    stats_temp_band_track(ntc_adc);
 }
 
 /* ======================================================================
@@ -159,7 +297,7 @@ void stats_print_all(void)
 
     /* ---- 各路激光开启次数（按键测试）---- */
     snprintf(msg, sizeof(msg),
-             "+STATS:LASER_CNT V1=%lu V2=%lu H=%lu\r\n",
+             "+STATS:LASER_CNT H=%lu V1=%lu V2=%lu\r\n",
              (unsigned long)g_stats.laser_on_cnt[0],
              (unsigned long)g_stats.laser_on_cnt[1],
              (unsigned long)g_stats.laser_on_cnt[2]);
@@ -198,11 +336,6 @@ void stats_print_all(void)
     /* ---- 三路同时开启时长 ---- */
     format_hms(g_stats.all3_laser_s, hms, sizeof(hms));
     snprintf(msg, sizeof(msg), "+STATS:ALL3_LASER=%s\r\n", hms);
-    uart9_send_blocking(msg);
-
-    /* ---- 未校准模式时长 ---- */
-    format_hms(g_stats.uncal_run_s, hms, sizeof(hms));
-    snprintf(msg, sizeof(msg), "+STATS:UNCAL_RUN=%s\r\n", hms);
     uart9_send_blocking(msg);
 
     /* ---- 角度模式时长 ---- */

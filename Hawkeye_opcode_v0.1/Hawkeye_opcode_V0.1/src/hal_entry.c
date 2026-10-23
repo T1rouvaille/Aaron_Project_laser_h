@@ -94,6 +94,9 @@ static void flash_load_all(void)
 
         /* 4. 运行统计 */
         stats_init();
+
+        /* 5. MEMS 型号：初始化时检测一次并写入 datalog（产品一般不更换传感器） */
+        flash_save_mems_model(imu_get_sensor_model());
     }
     else
     {
@@ -110,6 +113,8 @@ static void ntc_temp_protection_task(uint16_t ntc_adc)
 
     static uint16_t ntc_overheat_cnt = 0;
     static uint16_t ntc_low_temp_cnt  = 0;
+    static bool     ntc_hot_latched   = false;
+    static bool     ntc_cold_latched  = false;
 
     if (ntc_adc < NTC_OVERHEAT_THRESHOLD)
     {
@@ -120,6 +125,12 @@ static void ntc_temp_protection_task(uint16_t ntc_adc)
         {
             ntc_overheat_cnt = 0;
             //system_overheat_request(OVERHEAT_SOURCE_NTC_BOARD);
+            /* 边沿计数: 进入高温仅计数一次, 回到正常后重新武装 */
+            if (!ntc_hot_latched)
+            {
+                ntc_hot_latched = true;
+                stats_protection_event(STATS_PROT_NTC_HOT_LASER);
+            }
         }
     }
     else if (ntc_adc > NTC_LOW_TEMP_THRESHOLD)
@@ -131,6 +142,12 @@ static void ntc_temp_protection_task(uint16_t ntc_adc)
         {
             ntc_low_temp_cnt = 0;
             g_ntc_low_temp = true;
+            /* 边沿计数: 进入低温仅计数一次 */
+            if (!ntc_cold_latched)
+            {
+                ntc_cold_latched = true;
+                stats_protection_event(STATS_PROT_NTC_COLD_LASER);
+            }
         }
     }
     else
@@ -138,6 +155,8 @@ static void ntc_temp_protection_task(uint16_t ntc_adc)
         /* 正常温度区间 */
         ntc_overheat_cnt = 0;
         ntc_low_temp_cnt  = 0;
+        ntc_hot_latched   = false;
+        ntc_cold_latched  = false;
 
         /* 低温恢复: 带滞回, 需低于 (阈值 - 回差) 连续 N 次才退出 */
         static uint16_t ntc_recover_cnt = 0;
@@ -386,6 +405,9 @@ void hal_entry(void)
         {
             g_ntc_low_temp = true;
         }
+
+        /* temp 段温度分区: 开机检测一次并初始化分区状态机 */
+        stats_temp_band_init(ntc_boot);
     }
 
     /* ==================================================================
@@ -504,7 +526,8 @@ void hal_entry(void)
                 wdt_feed();
                 stats_tick_1s((const uint8_t *)gLaserOn,
                               (uint8_t)gAngleMode,
-                              battery_is_low_blink());
+                              battery_is_low_blink(),
+                              Read_ADC_Voltage_Value_NTC());
 
                 if (gAngleMode != ANGLE_MODE_OVERHEAT)
                 {

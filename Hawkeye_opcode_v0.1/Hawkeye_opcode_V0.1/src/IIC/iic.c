@@ -368,6 +368,18 @@ int8_t imu_init(uint8_t highSampleRate)
     return -1;
 }
 
+/* ========== IMU 型号字符串 (datalog MEMS Model 字段, ≤8 字节) ========== */
+const char *imu_get_sensor_model(void)
+{
+    switch (g_imu_sensor)
+    {
+        case IMU_SENSOR_IIM42351:  return "IIM42351";
+        case IMU_SENSOR_ICM40608:  return "ICM40608";
+        case IMU_SENSOR_LSM6DSOTR: return "LSM6DSO";  /* 8 字节字段, TR 为订购后缀 */
+        default:                   return "IIM42351";
+    }
+}
+
 /* ========== 统一读取加速度 (根据传感器类型分发) ========== */
 int8_t imu_get_acc(int16_t* acc)
 {

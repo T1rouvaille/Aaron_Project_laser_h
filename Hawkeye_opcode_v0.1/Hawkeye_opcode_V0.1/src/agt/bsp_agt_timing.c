@@ -16,6 +16,7 @@
 #include <adc/bsp_adc.h>
 #include "wdt/wdt.h"
 #include <adc/bsp_adc.h>
+#include "stats/bsp_stats.h"
 /* ===== 低温保护辅助: PID输出时自动缩放, 保持ISR相位时序 ===== */
 static uint32_t lt_scale_duty(uint32_t duty)
 {
@@ -255,6 +256,15 @@ void laser_adjust_duty(int avg_pd,
                 current_pid[laser_idx].integral   = 0;
                 current_pid[laser_idx].last_error = 0;
                 laser_pid[laser_idx].integral     = 0;
+
+                /* 过流事件边沿计数 (datalog Protection 段, 锁存仅触发一次) */
+                switch (laser_idx)
+                {
+                    case 0: stats_protection_event(STATS_PROT_V2_OVERCUR); break; /* V2(FRONT) */
+                    case 1: stats_protection_event(STATS_PROT_H1_OVERCUR); break; /* H(SIDE) */
+                    case 2: stats_protection_event(STATS_PROT_V1_OVERCUR); break; /* V1(HORIZ) */
+                    default: break;
+                }
             }
         }
     }

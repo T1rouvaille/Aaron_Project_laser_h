@@ -87,6 +87,9 @@ int8_t IIM42351_getAcc(int16_t* acc);
 int8_t imu_init(uint8_t highSampleRate);
 int8_t imu_get_acc(int16_t* acc);
 
+/* 返回当前检测到的 IMU 型号字符串 (≤8 字节, 供 datalog MEMS Model 字段使用) */
+const char *imu_get_sensor_model(void);
+
 /* IMU 角度调试打印开关: AT+IMUDBG=1 开启, AT+IMUDBG=0 关闭 */
 extern volatile bool g_imu_debug_enabled;
 

@@ -322,6 +322,7 @@ static uint8_t  g_bat_ntc_sample_cnt = 0;   /* 采样计数 */
 static uint8_t  g_bat_ntc_open_cnt   = 0;   /* th<100 开路确认计数 */
 static uint16_t g_bat_ntc_prev_th    = 0;   /* 上一次有效平均TH基准 */
 static bool     g_bat_ntc_th_valid   = false; /* 平均TH基准是否已建立 */
+static bool     g_bat_ntc_frozen_latched = false; /* 冻结事件边沿锁存, 恢复正常后释放 */
 
 void battery_temp_check(void)
 {
@@ -383,9 +384,23 @@ void battery_temp_check(void)
     int32_t r_x100 = (int32_t)4043 * (int32_t)vbatt / (int32_t)th - 2411;
 
     /* 电池包过热保护: R_ntc < 3.00kΩ (r_x100 < 300) 触发关机 */
-    if (r_x100 > 0 && r_x100 < 300)
+    if (r_x100 > 0 && r_x100 < BAT_NTC_OVERHEAT_R_X100)
     {
         system_overheat_request(OVERHEAT_SOURCE_BATTERY);
+    }
+
+    /* 电池包冻结检测: r_x100 > 阈值 → 电池 < 0°C, 边沿计一次 Frozen Pack (仅诊断, 不关机) */
+    if (r_x100 > BAT_NTC_FROZEN_R_X100)
+    {
+        if (!g_bat_ntc_frozen_latched)
+        {
+            g_bat_ntc_frozen_latched = true;
+            stats_protection_event(STATS_PROT_NTC_FROZEN_PACK);
+        }
+    }
+    else
+    {
+        g_bat_ntc_frozen_latched = false;
     }
 }
 
@@ -505,6 +520,10 @@ void system_power_off_with_reason(power_off_reason_t reason)
              power_off_reason_to_str(reason));
     uart9_send_blocking(msg);
     wdt_feed();
+
+    /* temp 段温度分区: 关机检测一次 */
+    stats_temp_band_shutdown(Read_ADC_Voltage_Value_NTC());
+
     flash_save_poweroff_and_stats((uint32_t)reason, stats_get_ptr());
 
     wdt_feed();
