@@ -34,6 +34,7 @@ void HardFault_Handler(void)
 
 static uint32_t no_laser_idle_s = 0U;
 static uint16_t g_calib_fail_cnt = 0;       /* 校准期间连续 I2C 读取失败计数 */
+static uint16_t g_calib_timeout_cnt = 0;    /* 校准总超时计数 (80ms/次), 6s 未完成判失败 */
 
 static int16_t acc[3];
 extern volatile uint8_t gSystemTickFlag;   /* 1ms节拍标志 */
@@ -195,14 +196,15 @@ static void imu_calib_posture_task(void)
 
     if (g_calib_request)
     {
-        /* 首次进入校准 → 打开所有激光开始闪烁 */
+        /* 首次进入校准 → 仅开 H (idx=0) 开始闪烁, V1/V2 不参与校准 */
         if (!g_calib_laser_flash)
         {
-            if (laser_serial_ctrl_all(true))
+            if (laser_serial_ctrl(0, true))
             {
                 g_calib_laser_flash = true;
                 g_calib_laser_on   = true;
                 g_calib_fail_cnt    = 0;
+                g_calib_timeout_cnt = 0;
             }
             /* 若 MOS 忙则等下个周期重试 */
         }
@@ -210,6 +212,25 @@ static void imu_calib_posture_task(void)
         {
             /* 重新校准 (AT+CALIBRATION 再次发送): 同步失败计数 */
             g_calib_fail_cnt = 0;
+        }
+
+        /* 总体超时保护: 闪烁开始后每 80ms 递增, 6s 内未采满 32 次判失败,
+         * 安全关激光(停闪 + EN1 断 + Flash 回写 0)避免无限闪烁烧管 */
+        if (g_calib_laser_flash)
+        {
+            if (++g_calib_timeout_cnt >= CALIBRATION_TIMEOUT_CNT)
+            {
+                g_calib_laser_flash = false;
+                g_calib_laser_on    = false;
+                g_calib_request     = false;
+                g_calib_cnt         = 0;
+                g_calib_sum[0]      = 0;
+                g_calib_sum[1]      = 0;
+                g_calib_sum[2]      = 0;
+                laser_serial_ctrl_all(false);   /* 内部 EN1_OFF + 三路清零 + Flash 回写 0 */
+                uart9_send_blocking("+RESP:CALIBRATION FAIL\r\n");
+                return;
+            }
         }
 
         if (imu_get_acc(acc) == 0)
@@ -230,6 +251,9 @@ static void imu_calib_posture_task(void)
                 gLaserOn[0] = 1;
                 gLaserOn[1] = 0;
                 gLaserOn[2] = 0;
+                /* 同步 Flash 激光状态: 校准开始时 laser_serial_ctrl_all(true) 写入 0x07,
+                 * 校准完成实际仅 H 亮, 回写 0x01 防止拔电池重上电恢复成三路全开 */
+                flash_save_laser_state(0x01);
                 /* 校准结束恢复调光: H 重新标记合法开启建立期, 覆盖电流爬升;
                  * V1/V2 清"曾经接通"标志 (关闭态, 防御性复位) */
                 laser_opening_set(0);

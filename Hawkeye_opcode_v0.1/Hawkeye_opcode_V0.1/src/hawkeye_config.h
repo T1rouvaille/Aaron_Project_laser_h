@@ -172,6 +172,7 @@
  *  IMU (IIM42351) 参数
  * ====================================================================== */
 #define CALIBRATION_TRIALS      (32)       /* 校准采样次数 */
+#define CALIBRATION_TIMEOUT_CNT (75U)      /* 校准总超时: 75 × 80ms = 6s, 超过判失败 */
 #define IMU_WARMUP_DISCARD      (10U)      /* 上电预热丢弃前 N 次采样, 等待 MEMS 稳定 */
 
 /* Z 轴零偏额外补偿 (LSB): 在校准值 imu_offset[2] 基础上再减此值, 修正残留偏置 */
