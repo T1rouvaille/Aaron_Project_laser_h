@@ -44,8 +44,9 @@ typedef enum {
  * ====================================================================== */
 extern const char * const powcal_ch_names[POWCAL_CH_NUM];
 
-/* 目标光功率表 (x100, 单位 0.01mW)，索引对应 powcal_channel_t */
-extern const int powcal_targets[POWCAL_CH_NUM];
+/* 目标光功率表 (x100, 单位 0.01mW)，索引对应 powcal_channel_t
+ * 初值为 hawkeye_config.h 的 POWCAL_TARGET_* 宏；可经 AT+POWTARGET 运行时修改 */
+extern int powcal_targets[POWCAL_CH_NUM];
 
 /* ======================================================================
  *  公开 API
@@ -72,6 +73,20 @@ bool powcal_save(void);
  * @return   参考电压值 (mV)
  */
 int powcal_get_ref_mv(powcal_channel_t ch);
+
+/**
+ * @brief 运行时设置某通道目标光功率 (x100, 0.01mW)
+ * @param ch  通道 (0=H, 1=V1, 2=V2)
+ * @param val 目标值, 如 240 = 2.40mW
+ */
+void powcal_set_target(powcal_channel_t ch, int val);
+
+/**
+ * @brief 查询某通道目标光功率 (x100, 0.01mW)
+ * @param ch 通道
+ * @return   目标值
+ */
+int powcal_get_target(powcal_channel_t ch);
 
 /**
  * @brief 查询某通道当前状态

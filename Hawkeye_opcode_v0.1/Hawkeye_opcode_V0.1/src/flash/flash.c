@@ -77,29 +77,41 @@ static void flash_buf_load(void)
 static fsp_err_t flash_buf_flush(void)
 {
     fsp_err_t err;
+    bool      write_phase   = false;
+    uint32_t  primask       = __get_PRIMASK();
+    uint32_t  systick_ctrl  = SysTick->CTRL;
+
+    /* Data Flash 擦写临界区: 禁中断 + 停 SysTick,
+     * 防止 200kHz PWM ISR 打断擦写时序 → HardFault (与 AT+FWUPDATE 一致) */
+    __disable_irq();
+    SysTick->CTRL = systick_ctrl & ~SysTick_CTRL_ENABLE_Msk;
 
     wdt_feed();  /* Flash擦除前喂狗, 防止WDT超时 */
     err = R_FLASH_LP_Erase(&g_flash0_ctrl,
                            FLASH_BLOCK_CALIBRATION,
                            FLASH_TOTAL_BLOCKS);   /* 6 块一次擦除 */
-    if (err != FSP_SUCCESS)
+
+    if (err == FSP_SUCCESS)
     {
-        uart9_send_blocking("+RESP:FLASH ERASE FAIL\r\n");
-        return err;
+        write_phase = true;
+        wdt_feed();  /* Flash写入前喂狗, 防止WDT超时 */
+        err = R_FLASH_LP_Write(&g_flash0_ctrl,
+                               (uint32_t)g_flash_buf,
+                               FLASH_BLOCK_CALIBRATION,
+                               FLASH_TOTAL_SIZE);     /* 384 字节一次写入 */
     }
 
-    wdt_feed();  /* Flash写入前喂狗, 防止WDT超时 */
-    err = R_FLASH_LP_Write(&g_flash0_ctrl,
-                           (uint32_t)g_flash_buf,
-                           FLASH_BLOCK_CALIBRATION,
-                           FLASH_TOTAL_SIZE);     /* 384 字节一次写入 */
+    /* 先恢复中断, 再打印失败信息 (避免关中断下阻塞串口) */
+    SysTick->CTRL = systick_ctrl;
+    __set_PRIMASK(primask);
+
     if (err != FSP_SUCCESS)
     {
-        uart9_send_blocking("+RESP:FLASH WRITE FAIL\r\n");
-        return err;
+        uart9_send_blocking(write_phase ? "+RESP:FLASH WRITE FAIL\r\n"
+                                        : "+RESP:FLASH ERASE FAIL\r\n");
     }
 
-    return FSP_SUCCESS;
+    return err;
 }
 
 /* ======================================================================

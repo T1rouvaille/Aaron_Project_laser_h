@@ -79,6 +79,7 @@ typedef enum
     CMD_CLEAR_ALL_FLASH,
     /* ===== 光功率校准 ===== */
     CMD_POWCAL,             /* AT+POWCAL=<CH>,<power> 或 AT+POWCAL=STOP/SAVE/STATUS */
+    CMD_POWTARGET,          /* AT+POWTARGET=<H|V1|V2>,<power_x100> 或 AT+POWTARGET? */
     CMD_LASER_CTRL,         /* AT+LASER=<CH>,<ON|OFF> */
     CMD_IMU_DEBUG,          /* AT+IMUDBG=<0|1> IMU角度实时打印开关 */
     CMD_FW_UPDATE,          /* 5 — 进入固件更新模式 */
@@ -129,6 +130,8 @@ static uart_cmd_t get_uart_cmd(char * str)
     if (strcmp(str, "AT+OVERHEAT") == 0)  return CMD_OVERHEAT;
     if (strcmp(str, "AT+CLEAR_ALL_FLASH") == 0) return CMD_CLEAR_ALL_FLASH;
     if (strncmp(str, "AT+POWCAL=", 10) == 0)  return CMD_POWCAL;
+    if (strncmp(str, "AT+POWTARGET=", 13) == 0) return CMD_POWTARGET;
+    if (strcmp(str, "AT+POWTARGET?") == 0)    return CMD_POWTARGET;
     if (strncmp(str, "AT+LASER=", 9) == 0)    return CMD_LASER_CTRL;
     if (strncmp(str, "AT+IMUDBG=", 10) == 0)  return CMD_IMU_DEBUG;
     if (strcmp(str, "5") == 0)                    return CMD_FW_UPDATE;
@@ -1010,6 +1013,68 @@ void Debug_UART9_ProcessReceivedData(void)
             }
         }
         break;
+
+        /* ==================================================================
+         *  AT+POWTARGET — 运行时设置/查询目标光功率 (调试用, 掉电不保存)
+         *
+         *  格式:
+         *    AT+POWTARGET=<CH>,<power_x100>  设置某通道目标光功率
+         *    AT+POWTARGET?                  查询三路目标
+         *
+         *  响应:
+         *    +POWTARGET:<CH>,<power_x100>             设置成功
+         *    +POWTARGET:H=<val>,V1=<val>,V2=<val>     查询
+         *    +POWTARGET:ERR,FORMAT                    格式错误
+         * ================================================================== */
+        case CMD_POWTARGET:
+        {
+            /* ----- 查询 ----- */
+            if (strcmp(str_buf, "AT+POWTARGET?") == 0)
+            {
+                char msg[64];
+                snprintf(msg, sizeof(msg), "+POWTARGET:H=%d,V1=%d,V2=%d\r\n",
+                         powcal_get_target(POWCAL_CH_H),
+                         powcal_get_target(POWCAL_CH_V1),
+                         powcal_get_target(POWCAL_CH_V2));
+                uart9_send_blocking(msg);
+                break;
+            }
+
+            /* ----- 设置 ----- */
+            char *arg = str_buf + 13;  /* 跳过 "AT+POWTARGET=" */
+
+            int ch = -1;
+            if      (arg[0] == 'H'  && (arg[1] == ',' || arg[1] == '\0'))
+                ch = POWCAL_CH_H;
+            else if (arg[0] == 'V' && arg[1] == '1' && (arg[2] == ',' || arg[2] == '\0'))
+                ch = POWCAL_CH_V1;
+            else if (arg[0] == 'V' && arg[1] == '2' && (arg[2] == ',' || arg[2] == '\0'))
+                ch = POWCAL_CH_V2;
+
+            if (ch < 0)
+            {
+                uart9_send_blocking("+POWTARGET:ERR,FORMAT: AT+POWTARGET=<H|V1|V2>,<power_x100>\r\n");
+                break;
+            }
+
+            const char *val_str = strchr(arg, ',');
+            if (val_str == NULL || val_str[1] == '\0')
+            {
+                uart9_send_blocking("+POWTARGET:ERR,MISSING VALUE\r\n");
+                break;
+            }
+            val_str++;  /* 跳过逗号 */
+            int val = atoi((char *)val_str);
+
+            powcal_set_target((powcal_channel_t)ch, val);
+
+            char msg[48];
+            snprintf(msg, sizeof(msg), "+POWTARGET:%s,%d\r\n",
+                     powcal_ch_names[ch],
+                     powcal_get_target((powcal_channel_t)ch));
+            uart9_send_blocking(msg);
+            break;
+        }
 
         /* ==================================================================
          *  AT+LASER — 串口控制激光开关

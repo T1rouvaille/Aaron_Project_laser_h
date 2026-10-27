@@ -25,6 +25,11 @@ static bool laser_was_connected[3] = {false, false, false};
  * 每次激光调光周期调用递减 1, 减到 0 后若才检测到电流建立 → 判带电插。 */
 static uint8_t laser_opening_cnt[3] = {0, 0, 0};
 
+/* "关闭衰减期"计数: 合法关闭命令后 EN1 关断, 电流从正常值衰减到阈值以下
+ * 需要时间, 此期间跳过插拔检测, 避免把"软件主动关闭"误判为"带电插入/拔出"。
+ * 每次激光调光周期调用递减 1, 减到 0 后才恢复检测。 */
+static uint8_t laser_closing_cnt[3] = {0, 0, 0};
+
 void laser_opening_set(uint8_t glaser_idx)
 {
     if (glaser_idx < 3)
@@ -33,6 +38,7 @@ void laser_opening_set(uint8_t glaser_idx)
         laser_opening_cnt[laser_idx]     = LASER_OPEN_ESTABLISH_CYCLES;
         laser_was_connected[laser_idx]   = false;
         hotplug_confirm_count[laser_idx] = 0;
+        laser_closing_cnt[laser_idx]     = 0;   /* 开启时清除关闭衰减残留 */
     }
 }
 
@@ -44,6 +50,7 @@ void laser_was_connected_reset(uint8_t glaser_idx)
         laser_was_connected[laser_idx]   = false;
         laser_opening_cnt[laser_idx]     = 0;
         hotplug_confirm_count[laser_idx] = 0;
+        laser_closing_cnt[laser_idx]     = LASER_CLOSE_ESTABLISH_CYCLES;  /* 关闭时启动衰减期 */
     }
 }
 
@@ -51,6 +58,14 @@ laser_safety_result_t laser_safety_hotplug_check(int laser_idx,
                                                  int avg_pd,
                                                  int current_mA)
 {
+    /* 关闭衰减期: 电流衰减期间跳过插拔检测, 防止"软件主动关闭"被误判为
+     * "带电插入/拔出"。衰减期结束(计数归零)后才恢复正常检测。 */
+    if (laser_closing_cnt[laser_idx] > 0)
+    {
+        laser_closing_cnt[laser_idx]--;
+        return LASER_SAFETY_SKIP;
+    }
+
     /* 合法开启建立期递减: 每次调光周期递减 1 */
     if (laser_opening_cnt[laser_idx] > 0)
         laser_opening_cnt[laser_idx]--;

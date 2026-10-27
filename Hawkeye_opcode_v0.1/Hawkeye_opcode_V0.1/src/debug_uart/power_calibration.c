@@ -37,11 +37,12 @@ extern volatile int reference_voltage2;  /* V1 (HORIZ) */
  * ====================================================================== */
 const char * const powcal_ch_names[POWCAL_CH_NUM] = { "H", "V1", "V2" };
 
-/* 目标光功率 (x100, 0.01mW) — 对应 H/V1/V2 */
-const int powcal_targets[POWCAL_CH_NUM] = {
-    POWCAL_TARGET_H,    /* H:  2.00mW */
-    POWCAL_TARGET_V1,   /* V1: 1.00mW */
-    POWCAL_TARGET_V2    /* V2: 1.00mW */
+/* 目标光功率 (x100, 0.01mW) — 对应 H/V1/V2
+ * 初值为 POWCAL_TARGET_* 宏; 经 AT+POWTARGET 可在运行时修改 (掉电不保存) */
+int powcal_targets[POWCAL_CH_NUM] = {
+    POWCAL_TARGET_H,    /* H:  2.40mW */
+    POWCAL_TARGET_V1,   /* V1: 1.20mW */
+    POWCAL_TARGET_V2    /* V2: 1.20mW */
 };
 
 /* ======================================================================
@@ -283,6 +284,23 @@ int powcal_get_ref_mv(powcal_channel_t ch)
 {
     int *ref_mv = get_ref_ptr(ch);
     return (ref_mv != NULL) ? *ref_mv : 0;
+}
+
+/* ======================================================================
+ *  目标光功率运行时设置/查询 (AT+POWTARGET)
+ * ====================================================================== */
+void powcal_set_target(powcal_channel_t ch, int val)
+{
+    if (ch < POWCAL_CH_NUM && val > 0)
+    {
+        powcal_targets[ch] = val;
+    }
+}
+
+int powcal_get_target(powcal_channel_t ch)
+{
+    if (ch >= POWCAL_CH_NUM) return 0;
+    return powcal_targets[ch];
 }
 
 powcal_status_t powcal_get_status(powcal_channel_t ch)

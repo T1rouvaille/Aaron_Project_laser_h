@@ -1045,8 +1045,8 @@ void laser_pwm_tick_isr(void)
 
         case ANGLE_MODE_UNCAL:
         default:
-            laser_mode_0_4deg();
-            //laser_mode_uncal();
+            //laser_mode_0_4deg();
+            laser_mode_uncal();
             break;
     }
 }

@@ -139,6 +139,14 @@
  * 开启到电流稳定超过 LASER_HOTPLUG_CURRENT_MA 的实际调光周期数。 */
 #define LASER_OPEN_ESTABLISH_CYCLES  (5U)
 
+/* 合法关闭"电流衰减期"覆盖的调光周期数 — 关闭命令后 EN1 关断, 电流从正常
+ * 值衰减到 < LASER_HOTPLUG_CURRENT_MA 需要时间(含 ADC 采样滤波滞后)。
+ * 此期间跳过插拔检测, 避免把"软件主动关闭"误判为"带电插入/拔出"。
+ * laser_safety_hotplug_check() 每个调光周期递减 1, 减到 0 后才恢复检测。
+ * 与 MOS_DELAY_MS(10ms) 对应, 覆盖整个关闭 MOS 时序窗口即可; 值越大对
+ * 关闭衰减越宽容, 对关闭后立即带电插入的检测越迟钝。 */
+#define LASER_CLOSE_ESTABLISH_CYCLES (10U)
+
 /* 电流超限消抖确认次数 — laser_adjust_duty() 每轮调光调用一次
  *  连续 5 次超过限流才锁存恒流模式，防止上电暂态尖峰误触发 */
 #define CURRENT_LIMIT_CONFIRM_COUNT  (5U)
@@ -247,7 +255,7 @@
  *  通道: H(SIDE) / V1(HORIZ) / V2(FRONT)
  * ====================================================================== */
 /* 目标光功率 (x100, 单位 0.01mW) */
-#define POWCAL_TARGET_H         240     /* H  目标 2.50mW */
+#define POWCAL_TARGET_H         240     /* H  目标 2.40mW */
 #define POWCAL_TARGET_V1        120     /* V1 目标 1.20mW */
 #define POWCAL_TARGET_V2        120     /* V2 目标 1.20mW */
 

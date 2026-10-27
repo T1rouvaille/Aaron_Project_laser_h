@@ -387,6 +387,21 @@ void hal_entry(void)
 
     GPT_Timing_Init();
     key_init();
+
+    /* ==================================================================
+     *  HardFault 复位检测: HardFault_Handler 在复位前写 SRAM 标记
+     *  0x20007FE0 = "HFAU" (0x48464155)。软复位不清 SRAM, 此处检测并
+     *  显性报告上次是否发生 HardFault, 然后清除标记避免下次误报。
+     * ================================================================== */
+    {
+        volatile uint32_t *hardfault_mark = (volatile uint32_t *)0x20007FE0U;
+        if (*hardfault_mark == 0x48464155U)
+        {
+            uart9_send_blocking("+RESP:LAST=HARDFAULT\r\n");
+            *hardfault_mark = 0x00000000U;
+        }
+    }
+
     wdt_init();
 
     /*

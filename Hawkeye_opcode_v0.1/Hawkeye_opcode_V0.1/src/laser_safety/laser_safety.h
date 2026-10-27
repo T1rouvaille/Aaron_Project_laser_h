@@ -41,7 +41,8 @@ typedef enum
 void laser_opening_set(uint8_t glaser_idx);
 
 /**
- * @brief 复位某通道的"曾经接通"标志 (激光关闭时调用), 同时清除建立期和消抖计数。
+ * @brief 复位某通道的"曾经接通"标志 (激光关闭时调用), 同时清除开启建立期和消抖计数,
+ *        并启动"关闭衰减期"——关闭后电流衰减窗口内跳过插拔检测, 防止误判。
  *        参数 glaser_idx = gLaserOn[] 索引 (0/1/2)。
  */
 void laser_was_connected_reset(uint8_t glaser_idx);
@@ -56,6 +57,7 @@ void laser_was_connected_reset(uint8_t glaser_idx);
  *         LASER_SAFETY_SKIP   PD 过低(故障/拔出), 跳过本次调光。
  *
  * 检测逻辑:
+ *   - 关闭衰减期: 合法关闭后电流衰减期间跳过全部检测 → 返回 SKIP。
  *   - 带电插入: 电流从无到有(从未接通→当前>=阈值), 且不在合法开启建立期内 → 关机。
  *   - 带电拔出: PD≈0 且电流≈0(断路), 且此前电流曾正常流过 → 连续确认后关机。
  *   - 开机未接激光管: 电流从未流过 → 不误关机。
