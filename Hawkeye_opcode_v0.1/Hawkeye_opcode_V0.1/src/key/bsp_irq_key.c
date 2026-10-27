@@ -758,6 +758,7 @@ void lock_sw_read(void)
 
                 /* 全关激光 (对应 AT+LASER=ALL,OFF) */
                 laser_serial_ctrl_all(false);
+                EN1_OPEN_DRAIN_LOW;   /* 关 lock_switch 后 P913 拉低并改开漏输出低 */
 
                 /* 关机记忆: laser_serial_ctrl_all(false) 内部已把 Flash 状态写成
                  * 全关 0, 这里改回"松开前快照", 使重新上电能恢复关机前的三路状态 */
@@ -793,6 +794,9 @@ void lock_sw_read(void)
             if (lock_low_confirm_count >= LOCK_SW_RUNTIME_CONFIRM_COUNT)
             {
                 lock_low_confirm_count = 0;
+
+                /* 重新锁定: P913 先恢复推挽输出, 再按原逻辑恢复激光 */
+                EN1_PUSH_PULL;
 
                 /* 待恢复掩码: 快照非 0 用快照, 全 0 则默认开 H */
                 lock_restore_mask = (lock_saved_mask != 0U) ? lock_saved_mask : 0x01U;

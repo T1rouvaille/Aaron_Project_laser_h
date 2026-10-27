@@ -24,6 +24,12 @@
 #define LED2_OFF   R_IOPORT_PinWrite(&g_ioport_ctrl, BSP_IO_PORT_02_PIN_07, BSP_IO_LEVEL_HIGH)
 #define LED3_OFF   R_IOPORT_PinWrite(&g_ioport_ctrl, BSP_IO_PORT_09_PIN_15, BSP_IO_LEVEL_HIGH)
 #define EN1_ON   R_IOPORT_PinWrite(&g_ioport_ctrl, BSP_IO_PORT_09_PIN_13, BSP_IO_LEVEL_HIGH)
+
+/* EN1 (P913) 输出模式切换:
+ *  开漏输出低  — NMOS 开漏, 由外部上拉决定高电平, 掉电/休眠时引脚不会被 MCU 强拉
+ *  推挽输出    — 恢复 CMOS 推挽 (POR 复位后 pin_data.c 默认态) */
+#define EN1_OPEN_DRAIN_LOW   R_IOPORT_PinCfg(&g_ioport_ctrl, BSP_IO_PORT_09_PIN_13, ((uint32_t) IOPORT_CFG_PORT_DIRECTION_OUTPUT | (uint32_t) IOPORT_CFG_NMOS_ENABLE | (uint32_t) IOPORT_CFG_PORT_OUTPUT_LOW))
+#define EN1_PUSH_PULL        R_IOPORT_PinCfg(&g_ioport_ctrl, BSP_IO_PORT_09_PIN_13, ((uint32_t) IOPORT_CFG_PORT_DIRECTION_OUTPUT | (uint32_t) IOPORT_CFG_PORT_OUTPUT_LOW))
 #define Power_En_ON   R_IOPORT_PinWrite(&g_ioport_ctrl, BSP_IO_PORT_04_PIN_08, BSP_IO_LEVEL_HIGH)
 #define Batt_ON   R_IOPORT_PinWrite(&g_ioport_ctrl, BSP_IO_PORT_04_PIN_09, BSP_IO_LEVEL_HIGH)
 

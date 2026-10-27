@@ -543,6 +543,7 @@ void system_power_off_with_reason(power_off_reason_t reason)
     R_BSP_SoftwareDelay(10, BSP_DELAY_UNITS_MILLISECONDS);
     wdt_feed();
     EN1_OFF;
+    EN1_OPEN_DRAIN_LOW;   /* 关机后 P913 改开漏输出低, 防止 MCU 强拉 */
 
     /* 关键: 不拉低电源、不喂狗, 让 WDT 超时产生 WDTRF 复位。
      * Bootloader 检测到 WDTRF + SRAM 魔数后才会真正锁死断电;
