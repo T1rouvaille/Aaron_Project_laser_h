@@ -756,6 +756,7 @@ void Debug_UART9_ProcessReceivedData(void)
                DUMP_SECS("[Time] Slope Laser H1&V1&V2 runtime", FLASH_SLOPE_H1V1V2);
                DUMP_SECS("[Time] Slope Laser H2&V1&V2 runtime[x]", FLASH_SLOPE_H2V1V2);
                DUMP_SECS("[Time] Slope Laser H1&H2&V1&V2 runtime[x]", FLASH_SLOPE_H1H2V1V2);
+               DUMP_SECS("[Time] tilt uncalibrated", FLASH_TIME_TILT_UNCAL);
                DUMP_SECS("[Time] tilt < 4 degrees (leveled)", FLASH_TIME_TILT_0_4);
                DUMP_SECS("[Time] 4 < tilt < 10 degrees", FLASH_TIME_TILT_4_10);
                DUMP_SECS("[Time] tilt > 10 degrees", FLASH_TIME_TILT_10_90);
@@ -766,7 +767,7 @@ void Debug_UART9_ProcessReceivedData(void)
                DUMP_SECS("[Time] Time in high brightness[x]", FLASH_TIME_HIGH_BRIGHT);
                wdt_feed();
 
-               /* ---- Cycle[8] (@204..235, uint32) ---- */
+               /* ---- Cycle[8] (@208..239, uint32) ---- */
                uart9_send_blocking("----- [Cycle] -----\r\n");
                DUMP_U32("[Cycle] Main Power Switch", FLASH_CYCLE_MAIN_SW);
                DUMP_U32("[Cycle] Horizontal1 Laser Switch", FLASH_CYCLE_H1_LASER);
@@ -778,14 +779,15 @@ void Debug_UART9_ProcessReceivedData(void)
                DUMP_U32("[Cycle] Global Brightness Remote Switch Cycles[x]", FLASH_CYCLE_BRIGHTNESS_REMOTE);
                wdt_feed();
 
-               /* ---- Optical[3] (@236..247, int32) ---- */
+               /* ---- Optical[4] (@240..255, int32) ---- */
                uart9_send_blocking("----- [Optical power] -----\r\n");
-               DUMP_I32("[Optical power] Laser H power", FLASH_OPT_H);
+               DUMP_I32("[Optical power] Laser H1 power", FLASH_OPT_H1);
+               DUMP_I32("[Optical power] Laser H2 power", FLASH_OPT_H2);
                DUMP_I32("[Optical power] Laser V1 power", FLASH_OPT_V1);
                DUMP_I32("[Optical power] Laser V2 power", FLASH_OPT_V2);
                wdt_feed();
 
-               /* ---- Offset / MEMS (@248..265) ---- */
+               /* ---- Offset / MEMS (@256..273) ---- */
                uart9_send_blocking("----- [Offset] / [Model] -----\r\n");
                DUMP_I16("[Offset] MEMS X axis Offset", FLASH_OFFSET_MEMS_X);
                DUMP_I16("[Offset] MEMS Y axis Offset", FLASH_OFFSET_MEMS_Y);
@@ -809,7 +811,7 @@ void Debug_UART9_ProcessReceivedData(void)
                }
                wdt_feed();
 
-               /* ---- Reference[4] (@266..273, uint16 mV) ---- */
+               /* ---- Reference[4] (@274..281, uint16 mV) ---- */
                uart9_send_blocking("----- [Reference Voltage] -----\r\n");
                DUMP_U16("[Reference Voltage] Laser H1", FLASH_REF_H1);
                DUMP_U16("[Reference Voltage] Laser H2[x]", FLASH_REF_H2);
@@ -817,7 +819,7 @@ void Debug_UART9_ProcessReceivedData(void)
                DUMP_U16("[Reference Voltage] Laser V2", FLASH_REF_V2);
                wdt_feed();
 
-               /* ---- drop / temp (@274..281) ---- */
+               /* ---- drop / temp (@282..289) ---- */
                uart9_send_blocking("----- [Count] / [temp] -----\r\n");
                DUMP_U16("[Count] MEMS drop record(>500g)[x]", FLASH_OFFSET_DROP);
                DUMP_U16("[temp] Laser Works in high Temp", FLASH_TEMP_HIGH);
@@ -825,7 +827,7 @@ void Debug_UART9_ProcessReceivedData(void)
                DUMP_U16("[temp] Laser Works in low Temp", FLASH_TEMP_LOW);
                wdt_feed();
 
-               /* ---- Bluetooth / RunTime (@282..305) ---- */
+               /* ---- Bluetooth / RunTime (@290..313) ---- */
                uart9_send_blocking("----- [Count] / [Run Time] -----\r\n");
                DUMP_U16("[Count] Bluetooth connected[x]", FLASH_BLE_CONNECTED);
                DUMP_U16("[Count] Bluetooth connections dropped[x]", FLASH_BLE_DROPPED);
@@ -1015,7 +1017,7 @@ void Debug_UART9_ProcessReceivedData(void)
         break;
 
         /* ==================================================================
-         *  AT+POWTARGET — 运行时设置/查询目标光功率 (调试用, 掉电不保存)
+         *  AT+POWTARGET — 运行时设置/查询目标光功率 (写入 Flash 持久化)
          *
          *  格式:
          *    AT+POWTARGET=<CH>,<power_x100>  设置某通道目标光功率

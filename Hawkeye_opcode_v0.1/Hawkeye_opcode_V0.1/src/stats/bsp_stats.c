@@ -250,8 +250,10 @@ void stats_tick_1s(const uint8_t laser_on[3],
             g_stats.angle_10_90_s++;
             break;
         case ANGLE_MODE_UNCAL:
+            g_stats.uncal_run_s++;   /* 未校准模式独立统计 (Time tilt uncalibrated @172) */
+            break;
         default:
-            g_stats.angle_0_4_s++;   /* 未校准模式按 0-4° 计（无独立 uncal 概念） */
+            g_stats.angle_0_4_s++;   /* 未知模式(含 OVERHEAT)兜底按 0-4° 计 */
             break;
     }
 
@@ -349,6 +351,10 @@ void stats_print_all(void)
 
     format_hms(g_stats.angle_10_90_s, hms, sizeof(hms));
     snprintf(msg, sizeof(msg), "+STATS:ANGLE_10_90=%s\r\n", hms);
+    uart9_send_blocking(msg);
+
+    format_hms(g_stats.uncal_run_s, hms, sizeof(hms));
+    snprintf(msg, sizeof(msg), "+STATS:ANGLE_UNCAL=%s\r\n", hms);
     uart9_send_blocking(msg);
 
     uart9_send_blocking("+RESP:STATS END\r\n");

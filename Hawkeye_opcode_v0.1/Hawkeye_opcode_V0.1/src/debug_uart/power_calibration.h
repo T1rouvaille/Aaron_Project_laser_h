@@ -75,7 +75,13 @@ bool powcal_save(void);
 int powcal_get_ref_mv(powcal_channel_t ch);
 
 /**
- * @brief 运行时设置某通道目标光功率 (x100, 0.01mW)
+ * @brief 上电初始化: 从 Flash 恢复目标光功率, 无效则用默认宏
+ * @note  在 flash_load_all() 之后调用一次
+ */
+void powcal_init(void);
+
+/**
+ * @brief 运行时设置某通道目标光功率 (x100, 0.01mW), 并写入 Flash 持久化
  * @param ch  通道 (0=H, 1=V1, 2=V2)
  * @param val 目标值, 如 240 = 2.40mW
  */

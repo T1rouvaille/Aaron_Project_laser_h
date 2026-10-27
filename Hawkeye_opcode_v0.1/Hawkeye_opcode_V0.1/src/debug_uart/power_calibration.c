@@ -38,7 +38,8 @@ extern volatile int reference_voltage2;  /* V1 (HORIZ) */
 const char * const powcal_ch_names[POWCAL_CH_NUM] = { "H", "V1", "V2" };
 
 /* 目标光功率 (x100, 0.01mW) — 对应 H/V1/V2
- * 初值为 POWCAL_TARGET_* 宏; 经 AT+POWTARGET 可在运行时修改 (掉电不保存) */
+ * 初值为 POWCAL_TARGET_* 宏; 经 AT+POWTARGET 设置后写入 Flash 持久化,
+ * 上电时由 powcal_init() 从 Flash 恢复; 若从未设置则保持默认宏。 */
 int powcal_targets[POWCAL_CH_NUM] = {
     POWCAL_TARGET_H,    /* H:  2.40mW */
     POWCAL_TARGET_V1,   /* V1: 1.20mW */
@@ -289,11 +290,33 @@ int powcal_get_ref_mv(powcal_channel_t ch)
 /* ======================================================================
  *  目标光功率运行时设置/查询 (AT+POWTARGET)
  * ====================================================================== */
+
+/**
+ * @brief 上电初始化: 从 Flash 恢复目标光功率, 无效(<=0/从未设置)则用默认宏
+ * @note  在 flash_load_all() 之后调用; 读取失败或字段为空时回退默认值
+ */
+void powcal_init(void)
+{
+    int h1, h2, v1, v2;
+    flash_load_optical_targets(&h1, &h2, &v1, &v2);
+
+    /* Hawkeye 仅 3 路激光 (H1/V1/V2), H2 恒 0 不恢复 */
+    powcal_targets[POWCAL_CH_H]  = (h1 > 0) ? h1 : POWCAL_TARGET_H;
+    powcal_targets[POWCAL_CH_V1] = (v1 > 0) ? v1 : POWCAL_TARGET_V1;
+    powcal_targets[POWCAL_CH_V2] = (v2 > 0) ? v2 : POWCAL_TARGET_V2;
+}
+
 void powcal_set_target(powcal_channel_t ch, int val)
 {
     if (ch < POWCAL_CH_NUM && val > 0)
     {
         powcal_targets[ch] = val;
+
+        /* 持久化到 Flash (替换默认 POWCAL_TARGET_* 宏), H2 恒 0 */
+        flash_save_optical_targets(powcal_targets[POWCAL_CH_H],   /* H1 */
+                                   0,                              /* H2 未使用 */
+                                   powcal_targets[POWCAL_CH_V1],  /* V1 */
+                                   powcal_targets[POWCAL_CH_V2]); /* V2 */
     }
 }
 

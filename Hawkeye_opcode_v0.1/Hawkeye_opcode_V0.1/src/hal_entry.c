@@ -13,6 +13,7 @@
 #include "hawkeye_config.h"
 #include "stats/bsp_stats.h"
 #include <laser_safety/laser_safety.h>
+#include "debug_uart/power_calibration.h"
 
 /* ======================================================================
  *  HardFault Handler: 喂狗后软复位, 避免 WDT 粗暴复位导致 Data Flash 二次损坏
@@ -432,6 +433,9 @@ void hal_entry(void)
     R_GPT_Start(&g_timer9_ctrl);    /* 1ms 中断 */
 
     flash_load_all();
+
+    /* 光功率目标从 Flash 恢复 (AT+POWTARGET 持久化值, 未设置则用默认宏) */
+    powcal_init();
 
     /* 启动时 控制板NTC 温度检测: 低温/高温即时生效, 不等运行期确认计数 */
     {

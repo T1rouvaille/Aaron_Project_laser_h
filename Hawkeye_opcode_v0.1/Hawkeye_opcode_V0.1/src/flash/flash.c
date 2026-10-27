@@ -144,6 +144,13 @@ static void flash_buf_prepare_datalog(void)
     uint32_t calib_req = buf_r32(g_flash_buf, FLASH_OFFSET_CALIB_REQ);
     memset(g_flash_buf, 0, FLASH_DATALOG_SIZE);
     buf_w32(g_flash_buf, FLASH_OFFSET_CALIB_REQ, calib_req);
+
+    /* Optical 段默认值: 首次初始化写入默认目标功率,
+     * 之后由 AT+POWTARGET 经 flash_save_optical_targets() 覆盖 */
+    buf_w32(g_flash_buf, FLASH_OPT_H1, (uint32_t)POWCAL_TARGET_H);
+    buf_w32(g_flash_buf, FLASH_OPT_H2, 0U);               /* H2 未使用, 恒 0 */
+    buf_w32(g_flash_buf, FLASH_OPT_V1, (uint32_t)POWCAL_TARGET_V1);
+    buf_w32(g_flash_buf, FLASH_OPT_V2, (uint32_t)POWCAL_TARGET_V2);
 }
 
 /* ======================================================================
@@ -174,6 +181,7 @@ static void flash_scatter_stats(uint8_t *buf, const flash_stats_t *stats)
     buf_w32(buf, FLASH_TIME_H1V2,    stats->v2_h_only_s);
     buf_w32(buf, FLASH_TIME_V1V2,    stats->v1_v2_only_s);
     buf_w32(buf, FLASH_TIME_H1V1V2,  stats->all3_laser_s);
+    buf_w32(buf, FLASH_TIME_TILT_UNCAL, stats->uncal_run_s);
     buf_w32(buf, FLASH_TIME_TILT_0_4,   stats->angle_0_4_s);
     buf_w32(buf, FLASH_TIME_TILT_4_10,  stats->angle_4_10_s);
     buf_w32(buf, FLASH_TIME_TILT_10_90, stats->angle_10_90_s);
@@ -193,10 +201,9 @@ static void flash_scatter_stats(uint8_t *buf, const flash_stats_t *stats)
     buf_w32(buf, FLASH_CYCLE_V1_LASER, stats->laser_on_cnt[1]);
     buf_w32(buf, FLASH_CYCLE_V2_LASER, stats->laser_on_cnt[2]);
 
-    /* Optical 段（校准目标功率常量, 固定值） */
-    buf_w32(buf, FLASH_OPT_H,  (uint32_t)POWCAL_TARGET_H);
-    buf_w32(buf, FLASH_OPT_V1, (uint32_t)POWCAL_TARGET_V1);
-    buf_w32(buf, FLASH_OPT_V2, (uint32_t)POWCAL_TARGET_V2);
+    /* Optical 段（光功率目标）不在此处写: 由 flash_buf_prepare_datalog()
+     * 首次初始化写入默认宏, 之后经 AT+POWTARGET 由 flash_save_optical_targets()
+     * 覆盖; 统计保存不应覆写用户自定义目标值。 */
 
     /* temp 段（次数, uint16, 饱和） */
     buf_w16(buf, FLASH_TEMP_HIGH,   u32_to_u16(stats->temp_high_cnt));
@@ -225,6 +232,7 @@ static void flash_gather_stats(flash_stats_t *stats)
     stats->v2_h_only_s   = flash_rd32(FLASH_TIME_H1V2);
     stats->v1_v2_only_s  = flash_rd32(FLASH_TIME_V1V2);
     stats->all3_laser_s  = flash_rd32(FLASH_TIME_H1V1V2);
+    stats->uncal_run_s   = flash_rd32(FLASH_TIME_TILT_UNCAL);
     stats->angle_0_4_s   = flash_rd32(FLASH_TIME_TILT_0_4);
     stats->angle_4_10_s  = flash_rd32(FLASH_TIME_TILT_4_10);
     stats->angle_10_90_s = flash_rd32(FLASH_TIME_TILT_10_90);
@@ -265,7 +273,7 @@ fsp_err_t flash_init(void)
 }
 
 /* ======================================================================
- *  校准数据（MEMS 偏移 → Offset 段 @244/246/248, int16）
+ *  校准数据（MEMS 偏移 → Offset 段 @256/258/260, int16）
  * ====================================================================== */
 fsp_err_t flash_save_calibration(int16_t ox, int16_t oy, int16_t oz)
 {
@@ -276,7 +284,7 @@ fsp_err_t flash_save_calibration(int16_t ox, int16_t oy, int16_t oz)
     buf_w16(g_flash_buf, FLASH_OFFSET_MEMS_Y, (uint16_t)oy);
     buf_w16(g_flash_buf, FLASH_OFFSET_MEMS_Z, (uint16_t)oz);
 
-    /* MEMS Reset Count +1（读-改-写 @250，每完成一次校准递增） */
+    /* MEMS Reset Count +1（读-改-写 @262，每完成一次校准递增） */
     uint32_t reset_cnt = buf_r32(g_flash_buf, FLASH_OFFSET_MEMS_RESET) + 1U;
     buf_w32(g_flash_buf, FLASH_OFFSET_MEMS_RESET, reset_cnt);
 
@@ -295,7 +303,7 @@ fsp_err_t flash_save_mems_model(const char *model)
     flash_buf_load();
     flash_buf_prepare_datalog();
 
-    /* MEMS Model：取前 8 字节写入 @254（不足部分补 0） */
+    /* MEMS Model：取前 8 字节写入 @266（不足部分补 0） */
     memset(g_flash_buf + FLASH_OFFSET_MEMS_MODEL, 0, 8U);
     for (uint8_t i = 0; i < 8U; i++)
     {
@@ -369,8 +377,9 @@ fsp_err_t flash_clear_calib_request(void)
 }
 
 /* ======================================================================
- *  参考电压（int32 RAM → Reference 段 @262/266/268, uint16）
- *    H1(262) ← ref_side(H),  V1(266) ← ref_horiz(V1),  V2(268) ← ref_front(V2)
+ *  参考电压（int32 RAM → Reference 段 @274/276/278/280, uint16）
+ *    H1(270) ← ref_side(H),  H2(272) 未使用,  V1(274) ← ref_horiz(V1),
+ *    V2(276) ← ref_front(V2)
  * ====================================================================== */
 fsp_err_t flash_save_reference(int32_t front, int32_t side, int32_t horiz)
 {
@@ -395,6 +404,34 @@ fsp_err_t flash_load_reference(int32_t *front, int32_t *side, int32_t *horiz)
     *side  = (int32_t)flash_rd16(FLASH_REF_H1);  /* H  ← ref_side  */
     *horiz = (int32_t)flash_rd16(FLASH_REF_V1);  /* V1 ← ref_horiz */
     return FSP_SUCCESS;
+}
+
+/* ======================================================================
+ *  Optical 段（光功率目标 int32 × 4, @240/244/248/252）
+ *   调试阶段经 AT+POWTARGET 写入, 替换默认 POWCAL_TARGET_* 宏;
+ *   若从未设置, 首次初始化时由 flash_buf_prepare_datalog() 写入默认宏。
+ *   H2 为 Stepper 标准的水平2激光, Hawkeye 无此路, 恒写 0。
+ * ====================================================================== */
+fsp_err_t flash_save_optical_targets(int h1, int h2, int v1, int v2)
+{
+    flash_buf_load();
+    flash_buf_prepare_datalog();
+
+    buf_w32(g_flash_buf, FLASH_OPT_H1, (uint32_t)h1);
+    buf_w32(g_flash_buf, FLASH_OPT_H2, (uint32_t)h2);
+    buf_w32(g_flash_buf, FLASH_OPT_V1, (uint32_t)v1);
+    buf_w32(g_flash_buf, FLASH_OPT_V2, (uint32_t)v2);
+
+    flash_buf_set_magic();
+    return flash_buf_flush();
+}
+
+void flash_load_optical_targets(int *h1, int *h2, int *v1, int *v2)
+{
+    if (h1) *h1 = (int)flash_rd32(FLASH_OPT_H1);
+    if (h2) *h2 = (int)flash_rd32(FLASH_OPT_H2);
+    if (v1) *v1 = (int)flash_rd32(FLASH_OPT_V1);
+    if (v2) *v2 = (int)flash_rd32(FLASH_OPT_V2);
 }
 
 /* ======================================================================
