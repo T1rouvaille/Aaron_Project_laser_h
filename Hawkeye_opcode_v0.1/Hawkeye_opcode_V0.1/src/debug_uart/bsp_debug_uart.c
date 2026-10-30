@@ -836,6 +836,34 @@ void Debug_UART9_ProcessReceivedData(void)
                DUMP_SECS("[Run Time] Remote operation distance <60m[x]", FLASH_RUNTIME_REMOTE_60);
                DUMP_SECS("[Run Time] Remote operation distance >60m[x]", FLASH_RUNTIME_REMOTE_60P);
                DUMP_SECS("[Run Time] Coin cell runtime[x]", FLASH_RUNTIME_COIN_CELL);
+               wdt_feed();
+
+               /* ---- 版本信息 (@314..319, 数字化 HW/FW Rev) ---- */
+               uart9_send_blocking("----- [Version] -----\r\n");
+               {
+                   /* FW Rev = major/minor/patch 三个 uint8 (@314/315/316) */
+                   uint32_t fw = flash_read_u32(FLASH_OFFSET_FWREV_BASE);
+                   snprintf(msg, sizeof(msg), "  %-48s : %lu\r\n", "[Version] FW Rev Major",
+                            (unsigned long)(fw & 0xFFU));
+                   uart9_send_blocking(msg);
+                   snprintf(msg, sizeof(msg), "  %-48s : %lu\r\n", "[Version] FW Rev Minor",
+                            (unsigned long)((fw >> 8U) & 0xFFU));
+                   uart9_send_blocking(msg);
+                   snprintf(msg, sizeof(msg), "  %-48s : %lu\r\n", "[Version] FW Rev Patch",
+                            (unsigned long)((fw >> 16U) & 0xFFU));
+                   uart9_send_blocking(msg);
+
+                   /* HW Rev = uint16 ASCII "A1" (小端: 低字节 '1', 高字节 'A') */
+                   uint16_t hw = flash_read_u16(FLASH_OFFSET_HWREV);
+                   char hw_str[3];
+                   hw_str[0] = (char)(hw >> 8U);       /* 高字节 'A' */
+                   hw_str[1] = (char)(hw & 0xFFU);     /* 低字节 '1' */
+                   hw_str[2] = '\0';
+                   snprintf(msg, sizeof(msg), "  %-48s : %s (0x%04X)\r\n", "[Version] HW Rev",
+                            hw_str, (unsigned)hw);
+                   uart9_send_blocking(msg);
+               }
+               wdt_feed();
 
                #undef FMT_HMS
                #undef DUMP_SECS

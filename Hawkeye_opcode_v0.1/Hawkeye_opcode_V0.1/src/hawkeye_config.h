@@ -26,6 +26,12 @@
 #define HAWKEYE_HW_REVISION_STR "A1"                /* 硬件版本 (PCB/装配版本) */
 #define HAWKEYE_FW_REVISION_STR "0.0.1"              /* 固件版本 */
 
+/* 数值化固件版本（写入 datalog 预留区 @314/315/316, 供 boot 'F' 以无符号整数显示）
+ * 与 HAWKEYE_FW_REVISION_STR "0.0.1" 保持一致 */
+#define HAWKEYE_FW_REV_MAJOR    (0U)
+#define HAWKEYE_FW_REV_MINOR    (0U)
+#define HAWKEYE_FW_REV_PATCH    (1U)
+
 /* ======================================================================
  *  MCU / 硬件基础参数
  * ====================================================================== */

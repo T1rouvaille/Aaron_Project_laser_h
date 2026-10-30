@@ -99,6 +99,10 @@ static void flash_load_all(void)
 
         /* 5. MEMS 型号：初始化时检测一次并写入 datalog（产品一般不更换传感器） */
         flash_save_mems_model(imu_get_sensor_model());
+
+        /* 6. 版本信息：数字化 HW/FW Rev 写入 datalog 预留区 @314-319
+         *    (每次开机无条件写入, 保证重烧固件但版本未变时也刷新) */
+        flash_save_rev_info();
     }
     else
     {

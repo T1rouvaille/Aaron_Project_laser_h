@@ -666,6 +666,34 @@ fsp_err_t flash_save_devinfo_from_config(void)
 }
 
 /* ======================================================================
+ *  版本信息落盘 — 数字化 HW/FW Rev 写入 datalog 预留区 @314-319
+ *
+ *  与 flash_save_devinfo_from_config() 不同, 此函数每次开机无条件调用
+ *  (见 hal_entry.c flash_load_all), 保证:
+ *    - 首启 (Data Flash 擦除) 时写入
+ *    - 重烧固件但版本号未变 (from_config 不重跑) 时仍写入
+ *  值均为编译期常量, 重复写入幂等, 无副作用。
+ * ====================================================================== */
+fsp_err_t flash_save_rev_info(void)
+{
+    flash_buf_load();
+    flash_buf_prepare_datalog();
+
+    /* FW Rev = major/minor/patch 三个 uint8 */
+    g_flash_buf[FLASH_FWREV_MAJOR]        = (uint8_t)HAWKEYE_FW_REV_MAJOR;
+    g_flash_buf[FLASH_FWREV_MINOR]        = (uint8_t)HAWKEYE_FW_REV_MINOR;
+    g_flash_buf[FLASH_FWREV_PATCH]        = (uint8_t)HAWKEYE_FW_REV_PATCH;
+
+    /* HW Rev "A1" 两字节 ASCII, 小端存储 (低字节 '1', 高字节 'A'),
+     * 使 boot HexDisplay 渲染为 0x4131 (= "A1" 自然阅读顺序) */
+    g_flash_buf[FLASH_OFFSET_HWREV + 0U]  = (uint8_t)HAWKEYE_HW_REVISION_STR[1]; /* '1' 低字节 */
+    g_flash_buf[FLASH_OFFSET_HWREV + 1U]  = (uint8_t)HAWKEYE_HW_REVISION_STR[0]; /* 'A' 高字节 */
+
+    flash_buf_set_magic();
+    return flash_buf_flush();
+}
+
+/* ======================================================================
  *  底层字段读取接口 (调试/完整 dump 用)
  * ====================================================================== */
 uint16_t flash_read_u16(uint32_t offset)

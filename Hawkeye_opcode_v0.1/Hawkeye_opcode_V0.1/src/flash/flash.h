@@ -41,7 +41,7 @@
  *   284..289 6      temp[3] (uint16×3)
  *   290..293 4      Bluetooth[2] (uint16×2)
  *   294..313 20     Run Time[5] (uint32×5)
- *   314..319 6      保留
+ *   314..319 6      版本信息: FW Rev u8×3 + HW Rev u16 (ASCII "A1")
  *  -------------------------------------------------------------------
  * ====================================================================== */
 #define FLASH_DATALOG_BLOCKS     (5U)                                    /* datalog 5 块 */
@@ -193,6 +193,19 @@
 #define FLASH_RUNTIME_REMOTE_60       (302U)  /* Remote operation distance <60m */
 #define FLASH_RUNTIME_REMOTE_60P      (306U)  /* Remote operation distance >60m */
 #define FLASH_RUNTIME_COIN_CELL       (310U)  /* Coin cell runtime */
+
+/* ======================================================================
+ *  版本信息段 (offset 314..319, 原保留区) — 数字化 HW/FW Rev
+ *  供 boot 'F' 以无符号整数显示 (字符串版在 devinfo @320+, boot 读不到)
+ *  FW Rev = major/minor/patch 三个 uint8 (对齐 HAWKEYE_FW_REV_* 宏)
+ *  HW Rev = uint16 ASCII "A1", 小端存储 ('1' 低字节, 'A' 高字节) →
+ *          boot HexDisplay 渲染为 0x4131 (= "A1" 自然阅读顺序)
+ * ====================================================================== */
+#define FLASH_OFFSET_FWREV_BASE      (314U)  /* uint8 × 3 = major/minor/patch */
+#define FLASH_FWREV_MAJOR            (314U)
+#define FLASH_FWREV_MINOR            (315U)
+#define FLASH_FWREV_PATCH            (316U)
+#define FLASH_OFFSET_HWREV           (318U)  /* uint16 ASCII "A1" (小端) */
 
 /* ======================================================================
  *  关机原因（与 bsp_adc.h 中 power_off_reason_t 对应）
@@ -372,6 +385,10 @@ fsp_err_t flash_clear_devinfo(void);
 
 /* 用当前 hawkeye_config.h 的宏自动填充版本信息，写入Flash */
 fsp_err_t flash_save_devinfo_from_config(void);
+
+/* 数字化 HW/FW Rev 写入 datalog 预留区 @314-319 (每次开机无条件调用) */
+fsp_err_t flash_save_rev_info(void);
+
 void flash_close(void);
 
 /* ======================================================================
