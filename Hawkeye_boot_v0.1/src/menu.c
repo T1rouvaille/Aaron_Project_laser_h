@@ -543,36 +543,31 @@ static void cmd_read_version_info(void)
 /*
  * 'F' READ_EEPROM — Honcho PR3 format
  *
- * Honcho IBOX(): 不读取任何字节, 根据已存地址响应:
- *   addr=0xFFFF → DL_Send_Read_EEPROM_Msg()   // 发送 log 数据
- *   other       → uart_tx_bit_bang(ETX)       // 仅发 ETX
+ * Honcho 原协议按 addr=0xFFFF 判断是否发送 log 数据, 但上位机
+ * BaseModule.ReadDatalogProcess 调用的是 InterfaceBox.ReadEEPROM()(void),
+ * 该重载不会先 SetAddress(0xFFFF), 导致 g_target_offset 恒为 0 →
+ * 旧 else 分支只回 ETX → 上位机报 "ECHO MISMATCH: 46, 03"。
+ * 本设计 'F' 语义恒为"读取 320 字节 Data Flash datalog", 故改为无条件发送。
  */
 static void cmd_read_eeprom(void)
 {
-    if (g_target_offset == VERSION_REQUEST_OFFSET)
+    uint8_t rsp[DATALOG_SIZE + 4];
+    uint16_t i;
+
+    rsp[0] = COMMAND_READ_EEPROM;
+    rsp[1] = (uint8_t)(DATALOG_SIZE >> 8U);
+    rsp[2] = (uint8_t)(DATALOG_SIZE & 0xFFU);
+
+    for (i = 0U; i < DATALOG_SIZE; i++)
     {
-        /* addr = 0xFFFF → 发送 APP Data Flash datalog (进入 IBOX 时已缓存到 RAM) */
-        uint8_t rsp[DATALOG_SIZE + 4];
-        uint16_t i;
-
-        rsp[0] = COMMAND_READ_EEPROM;
-        rsp[1] = (uint8_t)(DATALOG_SIZE >> 8U);
-        rsp[2] = (uint8_t)(DATALOG_SIZE & 0xFFU);
-
-        for (i = 0U; i < DATALOG_SIZE; i++)
-        {
-            rsp[3U + i] = g_datalog_buf[i];
-        }
-        rsp[3U + DATALOG_SIZE] = ETX;
-
-        comms_send(rsp, sizeof(rsp));
+        rsp[3U + i] = g_datalog_buf[i];
     }
-    else
-    {
-        /* 其他地址 → 仅发 ETX (与 Honcho 完全一致) */
-        uint8_t etx = ETX;
-        comms_send(&etx, 1U);
-    }
+    rsp[3U + DATALOG_SIZE] = ETX;
+
+    comms_send(rsp, sizeof(rsp));
+
+    g_target_offset = 0U;
+    g_target_addr   = 0x00000000;
 }
 
 /*

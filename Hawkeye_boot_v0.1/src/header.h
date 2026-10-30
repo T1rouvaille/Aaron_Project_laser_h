@@ -72,8 +72,8 @@
 #define SW_VERSION_MINOR        0x01U
 
 /* Tool identity strings — matching Honcho PR3 personalization.h */
-#define G_TOOL_PART_NUMBER      "NA837330"
-#define G_PERSONALIZATION       "MSL2 MARCHTHR Hawkeye Laser M1 20VHE OCT"
+#define G_TOOL_PART_NUMBER      "NB468754"
+#define G_PERSONALIZATION       "SCB1 MARCHTHR Hawkeye Laser M1 20VHE NOV"
 
 /* RA2E1 Unique ID register */
 #define UCID_ADDRESS            0x01001C00U
