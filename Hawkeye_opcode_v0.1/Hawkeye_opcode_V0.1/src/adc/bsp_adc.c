@@ -322,7 +322,16 @@ static uint8_t  g_bat_ntc_sample_cnt = 0;   /* 采样计数 */
 static uint8_t  g_bat_ntc_open_cnt   = 0;   /* th<100 开路确认计数 */
 static uint16_t g_bat_ntc_prev_th    = 0;   /* 上一次有效平均TH基准 */
 static bool     g_bat_ntc_th_valid   = false; /* 平均TH基准是否已建立 */
-static bool     g_bat_ntc_frozen_latched = false; /* 冻结事件边沿锁存, 恢复正常后释放 */
+static bool     g_bat_ntc_frozen_latched = false; /* 冻结事件一次上电仅记一次, 复位后重新计 */
+volatile int32_t g_bat_ntc_r_x100 = 0;           /* 电池NTC电阻定点值 r_x100 (0.01kΩ), 供温度分区统计使用 */
+
+/* 电池包 NTC 电阻定点值计算 (0.01kΩ): r_x100 = 4043*vbatt/th - 2411
+ * th==0 时返回 0 (无效, 调用方需自行判断) */
+int32_t bat_ntc_r_x100_calc(uint16_t vbatt, uint16_t th)
+{
+    if (th == 0) return 0;
+    return (int32_t)4043 * (int32_t)vbatt / (int32_t)th - 2411;
+}
 
 void battery_temp_check(void)
 {
@@ -381,7 +390,8 @@ void battery_temp_check(void)
     /* NTC 电阻计算 (电池 → NTC → TH → R_fixed=8.25k → GND)
      * R_ntc(kΩ) = 15.49 × VBATT / TH - 8.25
      * 定点数 ×100: R_x100 = 1549 × VBATT / TH - 825 (单位 0.01kΩ) */
-    int32_t r_x100 = (int32_t)4043 * (int32_t)vbatt / (int32_t)th - 2411;
+    int32_t r_x100 = bat_ntc_r_x100_calc(vbatt, th);
+    g_bat_ntc_r_x100 = r_x100;   /* 保存供温度分区统计使用 */
 
     /* 电池包过热保护: R_ntc < 3.00kΩ (r_x100 < 300) 触发关机 */
     if (r_x100 > 0 && r_x100 < BAT_NTC_OVERHEAT_R_X100)
@@ -389,7 +399,7 @@ void battery_temp_check(void)
         system_overheat_request(OVERHEAT_SOURCE_BATTERY);
     }
 
-    /* 电池包冻结检测: r_x100 > 阈值 → 电池 < 0°C, 边沿计一次 Frozen Pack (仅诊断, 不关机) */
+    /* 电池包冻结检测: r_x100 > 阈值 → 电池 < 0°C, 一次上电仅记一次 Frozen Pack (仅诊断, 不关机) */
     if (r_x100 > BAT_NTC_FROZEN_R_X100)
     {
         if (!g_bat_ntc_frozen_latched)
@@ -397,10 +407,6 @@ void battery_temp_check(void)
             g_bat_ntc_frozen_latched = true;
             stats_protection_event(STATS_PROT_NTC_FROZEN_PACK);
         }
-    }
-    else
-    {
-        g_bat_ntc_frozen_latched = false;
     }
 }
 
@@ -521,9 +527,6 @@ void system_power_off_with_reason(power_off_reason_t reason)
     uart9_send_blocking(msg);
     wdt_feed();
 
-    /* temp 段温度分区: 关机检测一次 */
-    stats_temp_band_shutdown(Read_ADC_Voltage_Value_NTC());
-
     flash_save_poweroff_and_stats((uint32_t)reason, stats_get_ptr());
 
     wdt_feed();
@@ -543,7 +546,6 @@ void system_power_off_with_reason(power_off_reason_t reason)
     R_BSP_SoftwareDelay(10, BSP_DELAY_UNITS_MILLISECONDS);
     wdt_feed();
     EN1_OFF;
-    EN1_OPEN_DRAIN_LOW;   /* 关机后 P913 改开漏输出低, 防止 MCU 强拉 */
 
     /* 关键: 不拉低电源、不喂狗, 让 WDT 超时产生 WDTRF 复位。
      * Bootloader 检测到 WDTRF + SRAM 魔数后才会真正锁死断电;

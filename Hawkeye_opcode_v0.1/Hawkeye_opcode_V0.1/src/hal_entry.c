@@ -120,7 +120,7 @@ static void ntc_temp_protection_task(uint16_t ntc_adc)
 
     if (ntc_adc < NTC_OVERHEAT_THRESHOLD)
     {
-        /* 高温保护: NTC ADC < 450 → >100°C */
+        /* 高温保护: NTC ADC < 670 → >80°C */
         ntc_low_temp_cnt = 0;
         ntc_overheat_cnt++;
         if (ntc_overheat_cnt >= NTC_TEMP_CONFIRM_COUNT)
@@ -449,8 +449,10 @@ void hal_entry(void)
             g_ntc_low_temp = true;
         }
 
-        /* temp 段温度分区: 开机检测一次并初始化分区状态机 */
-        stats_temp_band_init(ntc_boot);
+        /* temp 段温度分区: 开机检测一次并初始化分区状态机 (电池包 NTC r_x100) */
+        g_bat_ntc_r_x100 = bat_ntc_r_x100_calc(Read_ADC_Voltage_Value_BAT(),
+                                               Read_ADC_Voltage_Value_Battery_Temp());
+        stats_temp_band_init(g_bat_ntc_r_x100);
     }
 
     /* ==================================================================
@@ -558,14 +560,6 @@ void hal_entry(void)
             {
                 wdt_feed();
                 CNT[5] = 0;
-
-                /* 电池ADC原始值, 每秒输出一次 */
-/*                {
-                    char bat_str[32];
-                    snprintf(bat_str, sizeof(bat_str), "+BAT_ADC:%u\r\n",
-                             Read_ADC_Voltage_Value_BAT());
-                    uart9_send_blocking(bat_str);
-                }*/
             }
 
             /* ---- 按秒统计 + 无激光超时关机 ---- */
@@ -575,7 +569,7 @@ void hal_entry(void)
                 stats_tick_1s((const uint8_t *)gLaserOn,
                               (uint8_t)gAngleMode,
                               battery_is_low_blink(),
-                              Read_ADC_Voltage_Value_NTC());
+                              g_bat_ntc_r_x100);
 
                 if (gAngleMode != ANGLE_MODE_OVERHEAT)
                 {

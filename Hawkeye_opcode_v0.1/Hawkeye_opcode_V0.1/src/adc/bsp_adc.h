@@ -42,6 +42,7 @@ extern volatile uint16_t buf_ld2_3[ADC_BUF_SIZE];
 extern volatile uint8_t  g_laser_buf_ready;  /* buffer满标志，主循环消费后清0 */
 extern volatile uint16_t g_bat_adc_raw;      /* 电池ADC最新值，回调里更新 */
 extern volatile uint16_t g_bat_battery_temp_raw; /* 电池NTC温度ADC (AN022/CH22) */
+extern volatile int32_t  g_bat_ntc_r_x100;   /* 电池NTC电阻定点值 r_x100 (0.01kΩ), battery_temp_check 里更新 */
 
 /* ===== 函数声明（原有不变）===== */
 void Read_ADC_Voltage(uint16_t *data_array, uint8_t channel);
@@ -68,6 +69,7 @@ bool battery_is_low_blink(void);
 uint16_t Read_ADC_Voltage_Value_Battery_Temp(void);
 uint16_t Read_ADC_Voltage_Value_NTC(void);
 void battery_temp_check(void);
+int32_t bat_ntc_r_x100_calc(uint16_t vbatt, uint16_t th); /* 电池NTC电阻定点值计算 (0.01kΩ) */
 /* 上电预检测结果 (EN1 拉高前) */
 typedef enum {
     PRE_EN1_NOT_DONE = 0,   /* 采样未完成, 继续 */

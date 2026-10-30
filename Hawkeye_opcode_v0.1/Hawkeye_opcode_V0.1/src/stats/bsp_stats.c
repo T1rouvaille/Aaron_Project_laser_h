@@ -76,12 +76,12 @@ void stats_protection_event(stats_prot_event_t ev)
 /* ======================================================================
  *  temp 段温度分区状态机（带回差, 单位=次数）
  *
- *  分区定义（控制板 NTC ADC, 温度越高 ADC 越小）：
- *    high   → ADC <  NTC_TEMP_HIGH_ENTER_ADC (2004, >40°C)
- *    normal → ADC ∈ [2004, 2850] (0~40°C)
- *    low    → ADC >  NTC_TEMP_LOW_ENTER_ADC  (2850, <0°C)
+ *  分区定义（电池包 NTC r_x100 定点值, 0.01kΩ, 温度越高 r_x100 越小）：
+ *    high   → r_x100 <  BAT_NTC_TEMP_HIGH_ENTER_R_X100 (1175, >40°C)
+ *    normal → 1175 ≤ r_x100 ≤ 6400 (0~40°C)
+ *    low    → r_x100 >  BAT_NTC_FROZEN_R_X100          (6400, <0°C)
  *
- *  回差 NTC_TEMP_HYSTERESIS(400)：进入分区用严格阈值, 退出需跨过回差带,
+ *  回差 BAT_NTC_TEMP_HYSTERESIS_R_X100(400)：进入分区用严格阈值, 退出需跨过回差带,
  *  避免温度在阈值附近抖动导致反复计数。
  * ====================================================================== */
 typedef enum
@@ -93,10 +93,10 @@ typedef enum
 
 static temp_band_t s_temp_band = TEMP_BAND_NORMAL;
 
-static temp_band_t temp_band_classify(uint16_t ntc_adc)
+static temp_band_t temp_band_classify(int32_t r_x100)
 {
-    if (ntc_adc < NTC_TEMP_HIGH_ENTER_ADC) return TEMP_BAND_HIGH;
-    if (ntc_adc > NTC_TEMP_LOW_ENTER_ADC)  return TEMP_BAND_LOW;
+    if (r_x100 < BAT_NTC_TEMP_HIGH_ENTER_R_X100) return TEMP_BAND_HIGH;
+    if (r_x100 > BAT_NTC_FROZEN_R_X100)          return TEMP_BAND_LOW;
     return TEMP_BAND_NORMAL;
 }
 
@@ -111,24 +111,19 @@ static void temp_band_count(temp_band_t band)
     }
 }
 
-void stats_temp_band_init(uint16_t ntc_adc)
+void stats_temp_band_init(int32_t r_x100)
 {
-    s_temp_band = temp_band_classify(ntc_adc);
+    s_temp_band = temp_band_classify(r_x100);
     temp_band_count(s_temp_band);
 }
 
-void stats_temp_band_shutdown(uint16_t ntc_adc)
-{
-    temp_band_count(temp_band_classify(ntc_adc));
-}
-
-void stats_temp_band_track(uint16_t ntc_adc)
+void stats_temp_band_track(int32_t r_x100)
 {
     switch (s_temp_band)
     {
         case TEMP_BAND_HIGH:
-            /* 温度回落到 <40°C-回差 → 回 normal */
-            if (ntc_adc > (NTC_TEMP_HIGH_ENTER_ADC + NTC_TEMP_HYSTERESIS))
+            /* 温度回落到 <40°C-回差 → 回 normal (r_x100 增大 = 降温) */
+            if (r_x100 > (BAT_NTC_TEMP_HIGH_ENTER_R_X100 + BAT_NTC_TEMP_HYSTERESIS_R_X100))
             {
                 s_temp_band = TEMP_BAND_NORMAL;
                 temp_band_count(TEMP_BAND_NORMAL);
@@ -136,8 +131,8 @@ void stats_temp_band_track(uint16_t ntc_adc)
             break;
 
         case TEMP_BAND_LOW:
-            /* 温度回升到 >0°C+回差 → 回 normal */
-            if (ntc_adc < (NTC_TEMP_LOW_ENTER_ADC - NTC_TEMP_HYSTERESIS))
+            /* 温度回升到 >0°C+回差 → 回 normal (r_x100 减小 = 升温) */
+            if (r_x100 < (BAT_NTC_FROZEN_R_X100 - BAT_NTC_TEMP_HYSTERESIS_R_X100))
             {
                 s_temp_band = TEMP_BAND_NORMAL;
                 temp_band_count(TEMP_BAND_NORMAL);
@@ -147,13 +142,13 @@ void stats_temp_band_track(uint16_t ntc_adc)
         case TEMP_BAND_NORMAL:
         default:
             /* 变热越过 40°C → high */
-            if (ntc_adc < NTC_TEMP_HIGH_ENTER_ADC)
+            if (r_x100 < BAT_NTC_TEMP_HIGH_ENTER_R_X100)
             {
                 s_temp_band = TEMP_BAND_HIGH;
                 temp_band_count(TEMP_BAND_HIGH);
             }
             /* 变冷越过 0°C → low */
-            else if (ntc_adc > NTC_TEMP_LOW_ENTER_ADC)
+            else if (r_x100 > BAT_NTC_FROZEN_R_X100)
             {
                 s_temp_band = TEMP_BAND_LOW;
                 temp_band_count(TEMP_BAND_LOW);
@@ -168,7 +163,7 @@ void stats_temp_band_track(uint16_t ntc_adc)
 void stats_tick_1s(const uint8_t laser_on[3],
                    uint8_t       angle_mode,
                    bool          bat_state_low,
-                   uint16_t      ntc_adc)
+                   int32_t       r_x100)
 {
     (void)bat_state_low; /* 不再使用 LED 闪烁时长统计 */
 
@@ -258,7 +253,7 @@ void stats_tick_1s(const uint8_t laser_on[3],
     }
 
     /* 11. temp 段：温度分区切换跟踪（带回差, 单位=次数, 不依赖激光状态） */
-    stats_temp_band_track(ntc_adc);
+    stats_temp_band_track(r_x100);
 }
 
 /* ======================================================================

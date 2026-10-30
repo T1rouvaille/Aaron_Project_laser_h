@@ -184,7 +184,7 @@
 #define IMU_WARMUP_DISCARD      (10U)      /* 上电预热丢弃前 N 次采样, 等待 MEMS 稳定 */
 
 /* Z 轴零偏额外补偿 (LSB): 在校准值 imu_offset[2] 基础上再减此值, 修正残留偏置 */
-#define IMU_Z_OFFSET_COMP       (40)
+#define IMU_Z_OFFSET_COMP       (0)
 
 /** 角度阈值 (加速度计原始值) */
 #define LIMIT_3_8_DEG           (1068)      /* 3.8° 阈值 */
@@ -223,7 +223,7 @@
 /* ======================================================================
  *  NTC 控制板温度保护 (ADC CH10)
  * ====================================================================== */
-#define NTC_OVERHEAT_THRESHOLD      450     /* NTC ADC < 此值 → >100°C, 触发高温保护 */
+#define NTC_OVERHEAT_THRESHOLD      670     /* NTC ADC < 此值 → >80°C, 触发高温保护 (80°C≈670, 估算) */
 #define NTC_LOW_TEMP_THRESHOLD      3150    /* NTC ADC > 此值 → <-7°C, 标记低温 */
 #define NTC_LOW_TEMP_HYST           100     /* 低温恢复滞回 (ADC值), 需低于(阈值-回差)才退出 */
 #define NTC_TEMP_CONFIRM_COUNT      5       /* 连续确认次数 (5×20ms=100ms消抖) */
@@ -232,7 +232,7 @@
 
 /* ======================================================================
  *  NTC 温度分区统计 (datalog temp 段, 次数)
- *  与上方保护阈值(100°C/-7°C)独立: 温度越高 NTC ADC 越小
+ *  与上方保护阈值(80°C/-7°C)独立: 温度越高 NTC ADC 越小
  *    high   → ADC < 2004 (>40°C)
  *    normal → 2004 ≤ ADC ≤ 2850 (0~40°C)
  *    low    → ADC > 2850 (<0°C)
@@ -247,7 +247,16 @@
  *  ====================================================================== */
 #define BAT_NTC_OVERHEAT_R_X100     300     /* r_x100 < 此值 → 过热关机 (R_ntc < 3.00kΩ) */
 /* 冻结(0°C)检测阈值: r_x100 > 此值 → 电池包冻结, 仅诊断计数不关机 (已按实际电池 NTC 标定) */
-#define BAT_NTC_FROZEN_R_X100       3200    /* r_x100 > 此值 → 电池 < ~0°C */
+#define BAT_NTC_FROZEN_R_X100       6400    /* r_x100 > 此值 → 电池 < ~0°C */
+
+/* 电池包 NTC 温度分区统计边界 (datalog temp 段, r_x100 定点值 0.01kΩ)
+ * 温度越高 r_x100 越小:
+ *   high   → r_x100 <  1175 (>40°C)
+ *   normal → 1175 ≤ r_x100 ≤ 6400 (0~40°C)
+ *   low    → r_x100 >  6400 (<0°C)
+ * 回差 BAT_NTC_TEMP_HYSTERESIS_R_X100: 进入分区用严格阈值, 退出跨回差带, 防边界抖动 */
+#define BAT_NTC_TEMP_HIGH_ENTER_R_X100  (1175)   /* r_x100 < 此值 → >40°C, 进入 high 分区 */
+#define BAT_NTC_TEMP_HYSTERESIS_R_X100  (400)    /* 分区切换回差 (r_x100) */
 
 /* ======================================================================
  *  光功率自动校准参数

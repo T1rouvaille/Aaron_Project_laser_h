@@ -29,12 +29,12 @@ void stats_init(void);
  * @param laser_on      三路激光当前开关状态 (gLaserOn[3] 的拷贝)
  * @param angle_mode    当前角度模式 (gAngleMode)
  * @param bat_state_low 当前电池低压指示 (始终 false, LOW 状态已移除)
- * @param ntc_adc       控制板 NTC ADC 原始值（用于温度分区统计）
+ * @param r_x100        电池包 NTC 电阻定点值 (0.01kΩ，用于温度分区统计)
  */
 void stats_tick_1s(const uint8_t laser_on[3],
                    uint8_t       angle_mode,
                    bool          bat_state_low,
-                   uint16_t      ntc_adc);
+                   int32_t       r_x100);
 
 /**
  * @brief 记录某路激光被开启一次（按键按下时调用）
@@ -47,22 +47,16 @@ void stats_laser_key_press(uint8_t ch);
  * ====================================================================== */
 
 /**
- * @brief 开机检测一次: 按当前 NTC 温度判定初始分区并计数, 同时初始化状态机
- * @param ntc_adc  控制板 NTC ADC 原始值
+ * @brief 开机检测一次: 按当前电池 NTC 温度判定初始分区并计数, 同时初始化状态机
+ * @param r_x100  电池包 NTC 电阻定点值 (0.01kΩ)
  */
-void stats_temp_band_init(uint16_t ntc_adc);
+void stats_temp_band_init(int32_t r_x100);
 
 /**
  * @brief 运行中每秒调用: 带回差跟踪温度分区切换, 进入新分区时计数 +1
- * @param ntc_adc  控制板 NTC ADC 原始值
+ * @param r_x100  电池包 NTC 电阻定点值 (0.01kΩ)
  */
-void stats_temp_band_track(uint16_t ntc_adc);
-
-/**
- * @brief 关机检测一次: 按当前 NTC 温度判定分区并计数
- * @param ntc_adc  控制板 NTC ADC 原始值
- */
-void stats_temp_band_shutdown(uint16_t ntc_adc);
+void stats_temp_band_track(int32_t r_x100);
 
 /* ======================================================================
  *  Protection 段检测计数（运行时累积, 关机前随 stats 一起落盘）
