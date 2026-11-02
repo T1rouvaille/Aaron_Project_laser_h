@@ -1225,8 +1225,8 @@ void Debug_UART9_ProcessReceivedData(void)
             NVIC_ClearPendingIRQ(SysTick_IRQn);
             __disable_irq();
 
-            /* Erase last 2KB block (0x1E000-0x1FFFF) containing OTA flag */
-            err = g_flash0.p_api->erase(g_flash0.p_ctrl, 0x0001E000, 1);
+            /* Erase last 2KB block (0x1F800-0x1FFFF) containing OTA flag @0x1FFFC */
+            err = g_flash0.p_api->erase(g_flash0.p_ctrl, 0x0001F800, 1);
             if (FSP_SUCCESS == err)
             {
                 /* Write 0x5555AAAA to OTA flag address (0x1FFFC) */
