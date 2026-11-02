@@ -274,6 +274,13 @@ void menu(void)
     if( 0x55555555 == flag_end ){
         do_boot(&rsp);
     }
+    else if( ENTER_UPDATE_MODE == flag_end ){
+        /* APP 请求升级(0x5555AAAA)但未走完 XModem 流程, 兜底直接进入 XModem */
+        if (firmware_update_via_xmodem())
+        {
+            do_boot(&rsp);
+        }
+    }
     else if( 0xFFFFFFFF == flag_end ){
         CRC_rom = calcrc(APP_IMAGE_START_ADDRESS, (CRC_ADDRESS - APP_IMAGE_START_ADDRESS));
         CRC_ccitt = (unsigned short)(*(unsigned int *)CRC_ADDRESS);

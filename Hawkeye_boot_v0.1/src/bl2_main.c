@@ -511,7 +511,8 @@ int bl2_main(void)
 
         if (app_sp >= 0x20000000U && app_sp < 0x20004000U &&
             app_pc >= APP_IMAGE_START_ADDRESS && app_pc < APP_IMAGE_END_ADDRESS &&
-            (app_pc & 1U) == 1U)
+            (app_pc & 1U) == 1U &&
+            (*(uint32_t *)OTA_FLAG_END_ADDRESS != ENTER_UPDATE_MODE))
         {
             Power_En_ON;
             BOOT_Batt_ON;
