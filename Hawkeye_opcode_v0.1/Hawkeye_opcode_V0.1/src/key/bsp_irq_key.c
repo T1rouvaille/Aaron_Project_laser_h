@@ -34,7 +34,6 @@ static int8_t      mos_pending_ch = -1;
 static uint16_t    key_startup_ignore_ms = 0;
 static uint16_t    key_release_confirm_ms = 0;
 static bool        key_input_armed = false;
-static uint8_t     last_laser_mask = 0;  /* 上次激光状态掩码，用于去重保存 */
 
 key_t keys[] = {
     { .pin = BSP_IO_PORT_02_PIN_08, .name = "KEY1" },
@@ -299,12 +298,6 @@ void key_handle_events(void)
                     else if (i == 1) { set_laser3_200k_intensity(LASER_DEFAULT_DUTY, GPT_IO_PIN_GTIOCA);  }
                 }
                 
-                /* 保存激光状态 */
-                uint8_t current_mask = (gLaserOn[0] << 0) | (gLaserOn[1] << 1) | (gLaserOn[2] << 2);
-                if (current_mask != last_laser_mask) {
-                    last_laser_mask = current_mask;
-                    flash_save_laser_state(current_mask);
-                }
             }
             else
             {
@@ -337,12 +330,6 @@ void key_handle_events(void)
                     /* 关闭该路: 复位"曾经接通"标志, 重开时需重新确认有电流 */
                     laser_was_connected_reset(i);
 
-                    /* 保存激光状态 */
-                    uint8_t current_mask = (gLaserOn[0] << 0) | (gLaserOn[1] << 1) | (gLaserOn[2] << 2);
-                    if (current_mask != last_laser_mask) {
-                        last_laser_mask = current_mask;
-                        flash_save_laser_state(current_mask);
-                    }
                 }
                 else
                 {
@@ -360,9 +347,6 @@ void key_handle_events(void)
                     mos_delay_ms   = 0;
                     mos_state      = MOS_WAIT_PWM_THEN_OFF;
                     
-                    /* 保存激光状态（全关）*/
-                    flash_save_laser_state(0);
-                    last_laser_mask = 0;
                 }
             }
         }
@@ -405,7 +389,6 @@ void key_en_delay_task_1ms(void)
 
             all_carrier_off();
             flash_save_laser_state(0);
-            last_laser_mask = 0;
         }
         mos_state = MOS_IDLE;
         return;
@@ -522,13 +505,6 @@ bool laser_serial_ctrl(uint8_t idx, bool on)
             else if (idx == 1) { set_laser3_200k_intensity(LASER_DEFAULT_DUTY, GPT_IO_PIN_GTIOCA);  }
         }
 
-        /* 保存激光状态 */
-        uint8_t current_mask = (uint8_t)((gLaserOn[0] << 0) | (gLaserOn[1] << 1) | (gLaserOn[2] << 2));
-        if (current_mask != last_laser_mask)
-        {
-            last_laser_mask = current_mask;
-            flash_save_laser_state(current_mask);
-        }
     }
     else
     {
@@ -560,12 +536,6 @@ bool laser_serial_ctrl(uint8_t idx, bool on)
             /* 关闭该路: 复位"曾经接通"标志 */
             laser_was_connected_reset(idx);
 
-            uint8_t current_mask = (uint8_t)((gLaserOn[0] << 0) | (gLaserOn[1] << 1) | (gLaserOn[2] << 2));
-            if (current_mask != last_laser_mask)
-            {
-                last_laser_mask = current_mask;
-                flash_save_laser_state(current_mask);
-            }
         }
         else
         {
@@ -583,8 +553,6 @@ bool laser_serial_ctrl(uint8_t idx, bool on)
             mos_delay_ms   = 0;
             mos_state      = MOS_WAIT_PWM_THEN_OFF;
 
-            flash_save_laser_state(0);
-            last_laser_mask = 0;
         }
     }
 
@@ -635,8 +603,6 @@ bool laser_serial_ctrl_all(bool on)
             mos_state    = MOS_WAIT_PWM_THEN_ON;
         }
 
-        flash_save_laser_state(0x07);
-        last_laser_mask = 0x07;
     }
     else
     {
@@ -662,8 +628,6 @@ bool laser_serial_ctrl_all(bool on)
         mos_delay_ms   = 0;
         mos_state      = MOS_WAIT_PWM_THEN_OFF;
 
-        flash_save_laser_state(0);
-        last_laser_mask = 0;
     }
 
     return true;
@@ -759,13 +723,8 @@ void lock_sw_read(void)
                 /* 全关激光 (对应 AT+LASER=ALL,OFF) */
                 laser_serial_ctrl_all(false);
 
-                /* 关机记忆: laser_serial_ctrl_all(false) 内部已把 Flash 状态写成
-                 * 全关 0, 这里改回"松开前快照", 使重新上电能恢复关机前的三路状态 */
-                if (lock_saved_mask != 0U)
-                {
-                    flash_save_laser_state(lock_saved_mask);
-                    last_laser_mask = lock_saved_mask;
-                }
+                /* 关机记忆: 保存"松开前快照"(可能为 0), 使重新上电能恢复关机前的三路状态 */
+                flash_save_laser_state(lock_saved_mask);
 
                 /* 关 LED */
                 g_lock_led_override = 1;
