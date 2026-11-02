@@ -30,7 +30,7 @@ volatile bool g_imu_debug_enabled = false;   /* AT+IMUDBG=1 开启实时角度�
 volatile bool g_calib_laser_flash = false;  /* true=校准进行中, 激光闪烁 */
 volatile bool g_calib_laser_on = false;     /* 当前闪烁相位 */
 
-volatile angle_mode_t gAngleMode = ANGLE_MODE_0_4;
+volatile angle_mode_t gAngleMode = ANGLE_MODE_UNCAL;
 
 /* IIM42351 寄存器地址 */
 #define MPUREG_ACCEL_DATA_X1_H   0x1F
