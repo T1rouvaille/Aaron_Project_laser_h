@@ -12,6 +12,7 @@
 #include "wdt/wdt.h"
 #include "hawkeye_config.h"
 #include "stats/bsp_stats.h"
+#include "lvd/bsp_lvd.h"
 #include <laser_safety/laser_safety.h>
 #include "debug_uart/power_calibration.h"
 
@@ -438,6 +439,9 @@ void hal_entry(void)
 
     flash_load_all();
 
+    /* 掉电抢救：LVD1 监测 3.3V 轨，拔电池时 NMI 写回统计（flash_init 之后才可启用） */
+    lvd_powerloss_init();
+
     /* 光功率目标从 Flash 恢复 (AT+POWTARGET 持久化值, 未设置则用默认宏) */
     powcal_init();
 
@@ -569,11 +573,21 @@ void hal_entry(void)
             /* ---- 按秒统计 + 无激光超时关机 ---- */
             if (stats_tick_pending())
             {
+                static uint16_t save_heartbeat_s = 0;
+
                 wdt_feed();
                 stats_tick_1s((const uint8_t *)gLaserOn,
                               (uint8_t)gAngleMode,
                               battery_is_low_blink(),
                               g_bat_ntc_r_x100);
+
+                /* 心跳落盘：每 30min 写一次统计，减少拔电池丢数据。
+                 * 写 Data Flash 不关中断，不会冻结 GPT9 → 激光不闪。 */
+                if (++save_heartbeat_s >= 1800)
+                {
+                    save_heartbeat_s = 0;
+                    flash_save_stats(stats_get_ptr());
+                }
 
                 if (gAngleMode != ANGLE_MODE_OVERHEAT)
                 {

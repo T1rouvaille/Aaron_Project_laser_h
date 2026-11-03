@@ -78,14 +78,9 @@ static fsp_err_t flash_buf_flush(void)
 {
     fsp_err_t err;
     bool      write_phase   = false;
-    uint32_t  primask       = __get_PRIMASK();
-    uint32_t  systick_ctrl  = SysTick->CTRL;
 
-    /* Data Flash 擦写临界区: 禁中断 + 停 SysTick,
-     * 防止 200kHz PWM ISR 打断擦写时序 → HardFault (与 AT+FWUPDATE 一致) */
-    __disable_irq();
-    SysTick->CTRL = systick_ctrl & ~SysTick_CTRL_ENABLE_Msk;
-
+    /* Data Flash 擦写走 FSP r_flash_lp 的 FRDY 中断，无需禁中断/停 SysTick。
+     * 若关中断会冻结 GPT9 1ms ISR，拉长 0-4° 采样低相位 → 激光闪。 */
     wdt_feed();  /* Flash擦除前喂狗, 防止WDT超时 */
     err = R_FLASH_LP_Erase(&g_flash0_ctrl,
                            FLASH_BLOCK_CALIBRATION,
@@ -100,10 +95,6 @@ static fsp_err_t flash_buf_flush(void)
                                FLASH_BLOCK_CALIBRATION,
                                FLASH_TOTAL_SIZE);     /* 384 字节一次写入 */
     }
-
-    /* 先恢复中断, 再打印失败信息 (避免关中断下阻塞串口) */
-    SysTick->CTRL = systick_ctrl;
-    __set_PRIMASK(primask);
 
     if (err != FSP_SUCCESS)
     {
