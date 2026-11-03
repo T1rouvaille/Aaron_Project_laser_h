@@ -241,6 +241,22 @@ int firmware_update_via_xmodem(void)
         comms_send((uint8_t *)"App area blank\r\n", 17U);
     }
 
+    /* 擦除后立即回写 OTA flag = ENTER_UPDATE_MODE。
+     * 擦除把 block 63（含 OTA flag）一并抹成 0xFFFFFFFF，若 XModem 传输途中断电，
+     * 重上电后 boot 找不到有效升级/启动路径，会进入 menu 超时 -> CRC NG -> 跳擦除区崩溃。
+     * 先写回 flag，断电后重上电仍能自动重新进入 XModem 恢复升级。 */
+    {
+        uint32_t update_flag = ENTER_UPDATE_MODE;
+        ThreadsAndInterrupts(DISABLE);
+        err = g_flash0.p_api->write(g_flash0.p_ctrl, (uint32_t)&update_flag, OTA_FLAG_END_ADDRESS, 4);
+        ThreadsAndInterrupts(RE_ENABLE);
+        if (FSP_SUCCESS != err)
+        {
+            comms_send((uint8_t *)"Re-write OTA flag failed\r\n", 27U);
+            return 0;
+        }
+    }
+
     /* XModem download and flash programming */
     comms_send((uint8_t *)"Start Xmodem transfer...\r\n", 28U);
     xm_err = XmodemDownloadAndProgramFlash(APP_IMAGE_START_ADDRESS);
