@@ -46,6 +46,9 @@ int powcal_targets[POWCAL_CH_NUM] = {
     POWCAL_TARGET_V2    /* V2: 1.20mW */
 };
 
+/* 每路校准 DONE 时的实测光功率 (x100, 0.01mW)，由 AT+POWCAL=SAVE 落盘到 Optical 段 */
+int powcal_final_power[POWCAL_CH_NUM] = {0, 0, 0};
+
 /* ======================================================================
  *  通道状态
  * ====================================================================== */
@@ -168,7 +171,8 @@ powcal_status_t powcal_process(powcal_channel_t ch, int power)
      * power >= target 且 power <= target + 0.05mW → DONE
      * power <  target → 不通过，需继续升压 */
     if (error <= 0 && error >= -POWCAL_THRESH_SMALL) {
-        powcal_state[ch] = POWCAL_STAT_DONE;
+        powcal_state[ch]       = POWCAL_STAT_DONE;
+        powcal_final_power[ch] = power;   /* 记录最终实测光功率 */
         return POWCAL_STAT_DONE;
     }
 
@@ -268,13 +272,16 @@ powcal_status_t powcal_process(powcal_channel_t ch, int power)
 }
 
 /* ======================================================================
- *  保存校准结果到 Flash
+ *  保存校准结果到 Flash（参考电压 + 实测光功率，一次性落盘）
  * ====================================================================== */
 bool powcal_save(void)
 {
-    fsp_err_t err = flash_save_reference(reference_voltage,
-                                         reference_voltage1,
-                                         reference_voltage2);
+    fsp_err_t err = flash_save_powcal_result(reference_voltage,        /* V2 (front) */
+                                             reference_voltage1,       /* H  (side)  */
+                                             reference_voltage2,       /* V1 (horiz) */
+                                             powcal_final_power[POWCAL_CH_H],
+                                             powcal_final_power[POWCAL_CH_V1],
+                                             powcal_final_power[POWCAL_CH_V2]);
     return (err == FSP_SUCCESS);
 }
 
@@ -292,31 +299,23 @@ int powcal_get_ref_mv(powcal_channel_t ch)
  * ====================================================================== */
 
 /**
- * @brief 上电初始化: 从 Flash 恢复目标光功率, 无效(<=0/从未设置)则用默认宏
- * @note  在 flash_load_all() 之后调用; 读取失败或字段为空时回退默认值
+ * @brief 上电初始化: 目标光功率恢复默认宏（仅 RAM，不从 Flash 读）
+ * @note  在 flash_load_all() 之后调用
  */
 void powcal_init(void)
 {
-    int h1, h2, v1, v2;
-    flash_load_optical_targets(&h1, &h2, &v1, &v2);
-
-    /* Hawkeye 仅 3 路激光 (H1/V1/V2), H2 恒 0 不恢复 */
-    powcal_targets[POWCAL_CH_H]  = (h1 > 0) ? h1 : POWCAL_TARGET_H;
-    powcal_targets[POWCAL_CH_V1] = (v1 > 0) ? v1 : POWCAL_TARGET_V1;
-    powcal_targets[POWCAL_CH_V2] = (v2 > 0) ? v2 : POWCAL_TARGET_V2;
+    /* 目标光功率仅存 RAM, 上电恢复默认宏。
+     * Optical 段现为实测光功率(校准结果), 不再作为目标值来源。 */
+    powcal_targets[POWCAL_CH_H]  = POWCAL_TARGET_H;
+    powcal_targets[POWCAL_CH_V1] = POWCAL_TARGET_V1;
+    powcal_targets[POWCAL_CH_V2] = POWCAL_TARGET_V2;
 }
 
 void powcal_set_target(powcal_channel_t ch, int val)
 {
     if (ch < POWCAL_CH_NUM && val > 0)
     {
-        powcal_targets[ch] = val;
-
-        /* 持久化到 Flash (替换默认 POWCAL_TARGET_* 宏), H2 恒 0 */
-        flash_save_optical_targets(powcal_targets[POWCAL_CH_H],   /* H1 */
-                                   0,                              /* H2 未使用 */
-                                   powcal_targets[POWCAL_CH_V1],  /* V1 */
-                                   powcal_targets[POWCAL_CH_V2]); /* V2 */
+        powcal_targets[ch] = val;  /* 目标光功率仅存 RAM, 掉电恢复默认宏 */
     }
 }
 
@@ -324,6 +323,12 @@ int powcal_get_target(powcal_channel_t ch)
 {
     if (ch >= POWCAL_CH_NUM) return 0;
     return powcal_targets[ch];
+}
+
+int powcal_get_final_power(powcal_channel_t ch)
+{
+    if (ch >= POWCAL_CH_NUM) return 0;
+    return powcal_final_power[ch];
 }
 
 powcal_status_t powcal_get_status(powcal_channel_t ch)

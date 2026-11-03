@@ -882,7 +882,7 @@ void Debug_UART9_ProcessReceivedData(void)
          *  格式:
          *    AT+POWCAL=<CH>,<power_x100>  上报光功率读数，MCU 自动调参考电压
          *    AT+POWCAL=STOP[,<CH>]        停止校准（可指定通道，不指定则全部）
-         *    AT+POWCAL=SAVE              保存校准结果到 Flash
+         *    AT+POWCAL=SAVE              保存校准结果(参考电压+实测光功率)到 Flash
          *    AT+POWCAL=STATUS            查询校准状态
          *
          *  响应:
@@ -917,9 +917,10 @@ void Debug_UART9_ProcessReceivedData(void)
                     char msg[80];
                     wdt_feed();
                     snprintf(msg, sizeof(msg),
-                             "+POWCAL:STATUS,%s,%s,%dmV,target=%d\r\n",
+                             "+POWCAL:STATUS,%s,%s,%dmV,target=%d,power=%d\r\n",
                              powcal_ch_names[i], state_str, ref,
-                             powcal_targets[i]);
+                             powcal_targets[i],
+                             powcal_get_final_power((powcal_channel_t)i));
                     uart9_send_blocking(msg);
                     wdt_feed();  /* 多发消息间喂狗 */
                 }

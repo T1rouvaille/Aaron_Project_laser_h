@@ -33,7 +33,7 @@
  *   24..51   28     Protection[14] (uint16×14)    关机原因 → 对应字段
  *   52..207  156    Time[39] (uint32×39)          激光/角度运行时长
  *   208..239 32     Cycle[8] (uint32×8)           激光按键次数
- *   240..255 16     Optical[4] (int32×4)          光功率(H1/H2/V1/V2)
+ *   240..255 16     Optical[4] (int32×4)          实测光功率(H1/H2/V1/V2)
  *   256..273 18     Offset: MEMS X/Y/Z (int16) +   校准偏移
  *                   Reset (uint32) + Model (uint8[8])
  *   274..281 8      Reference[4] (uint16×4)       参考电压
@@ -348,9 +348,11 @@ fsp_err_t flash_load_mems_model(uint8_t model[8]);
 fsp_err_t flash_save_reference(int32_t front, int32_t side, int32_t horiz);
 fsp_err_t flash_load_reference(int32_t *front, int32_t *side, int32_t *horiz);
 
-/* 光功率目标 (Optical 段 @240/244/248/252, int32 × 4) 持久化接口 */
-fsp_err_t flash_save_optical_targets(int h1, int h2, int v1, int v2);
-void      flash_load_optical_targets(int *h1, int *h2, int *v1, int *v2);
+/* 光功率校准结果一次性落盘：参考电压 (Reference 段 @274/276/278/280, uint16)
+ * + 实测光功率 (Optical 段 @240/244/248/252, int32 × 4)。
+ * 实测光功率 = 每路校准 DONE 时上报的 power (x100, 单位 0.01mW)。 */
+fsp_err_t flash_save_powcal_result(int32_t front, int32_t side, int32_t horiz,
+                                   int32_t h1, int32_t v1, int32_t v2);
 
 /**
  * @brief 加载关机日志（若 Flash 中无有效数据则全部清零返回）

@@ -136,12 +136,12 @@ static void flash_buf_prepare_datalog(void)
     memset(g_flash_buf, 0, FLASH_DATALOG_SIZE);
     buf_w32(g_flash_buf, FLASH_OFFSET_CALIB_REQ, calib_req);
 
-    /* Optical 段默认值: 首次初始化写入默认目标功率,
-     * 之后由 AT+POWTARGET 经 flash_save_optical_targets() 覆盖 */
-    buf_w32(g_flash_buf, FLASH_OPT_H1, (uint32_t)POWCAL_TARGET_H);
+    /* Optical 段 (实测光功率) 首次初始化为 0 (未校准),
+     * 校准完成后由 AT+POWCAL=SAVE 经 flash_save_powcal_result() 写入实测值 */
+    buf_w32(g_flash_buf, FLASH_OPT_H1, 0U);
     buf_w32(g_flash_buf, FLASH_OPT_H2, 0U);               /* H2 未使用, 恒 0 */
-    buf_w32(g_flash_buf, FLASH_OPT_V1, (uint32_t)POWCAL_TARGET_V1);
-    buf_w32(g_flash_buf, FLASH_OPT_V2, (uint32_t)POWCAL_TARGET_V2);
+    buf_w32(g_flash_buf, FLASH_OPT_V1, 0U);
+    buf_w32(g_flash_buf, FLASH_OPT_V2, 0U);
 }
 
 /* ======================================================================
@@ -192,9 +192,8 @@ static void flash_scatter_stats(uint8_t *buf, const flash_stats_t *stats)
     buf_w32(buf, FLASH_CYCLE_V1_LASER, stats->laser_on_cnt[1]);
     buf_w32(buf, FLASH_CYCLE_V2_LASER, stats->laser_on_cnt[2]);
 
-    /* Optical 段（光功率目标）不在此处写: 由 flash_buf_prepare_datalog()
-     * 首次初始化写入默认宏, 之后经 AT+POWTARGET 由 flash_save_optical_targets()
-     * 覆盖; 统计保存不应覆写用户自定义目标值。 */
+    /* Optical 段（实测光功率）不在此处写: 由校准 AT+POWCAL=SAVE
+     * 经 flash_save_powcal_result() 写入; 统计保存不应覆写实测光功率。 */
 
     /* temp 段（次数, uint16, 饱和） */
     buf_w16(buf, FLASH_TEMP_HIGH,   u32_to_u16(stats->temp_high_cnt));
@@ -398,31 +397,32 @@ fsp_err_t flash_load_reference(int32_t *front, int32_t *side, int32_t *horiz)
 }
 
 /* ======================================================================
- *  Optical 段（光功率目标 int32 × 4, @240/244/248/252）
- *   调试阶段经 AT+POWTARGET 写入, 替换默认 POWCAL_TARGET_* 宏;
- *   若从未设置, 首次初始化时由 flash_buf_prepare_datalog() 写入默认宏。
+ *  光功率校准结果一次性落盘
+ *   Reference 段 (uint16 × 4, @274/276/278/280) ← 参考电压 (mV)
+ *   Optical  段 (int32 × 4, @240/244/248/252)   ← 实测光功率 (x100, 0.01mW)
  *   H2 为 Stepper 标准的水平2激光, Hawkeye 无此路, 恒写 0。
+ *   一次性 flush, 避免参考电压与光功率两次擦写浪费 Data Flash 寿命。
  * ====================================================================== */
-fsp_err_t flash_save_optical_targets(int h1, int h2, int v1, int v2)
+fsp_err_t flash_save_powcal_result(int32_t front, int32_t side, int32_t horiz,
+                                   int32_t h1, int32_t v1, int32_t v2)
 {
     flash_buf_load();
     flash_buf_prepare_datalog();
 
+    /* 参考电压: H ← side, V1 ← horiz, V2 ← front */
+    buf_w16(g_flash_buf, FLASH_REF_H1, (uint16_t)side);
+    buf_w16(g_flash_buf, FLASH_REF_H2, 0);
+    buf_w16(g_flash_buf, FLASH_REF_V1, (uint16_t)horiz);
+    buf_w16(g_flash_buf, FLASH_REF_V2, (uint16_t)front);
+
+    /* 实测光功率: H ← h1, V1 ← v1, V2 ← v2 (H2 恒 0) */
     buf_w32(g_flash_buf, FLASH_OPT_H1, (uint32_t)h1);
-    buf_w32(g_flash_buf, FLASH_OPT_H2, (uint32_t)h2);
+    buf_w32(g_flash_buf, FLASH_OPT_H2, 0U);
     buf_w32(g_flash_buf, FLASH_OPT_V1, (uint32_t)v1);
     buf_w32(g_flash_buf, FLASH_OPT_V2, (uint32_t)v2);
 
     flash_buf_set_magic();
     return flash_buf_flush();
-}
-
-void flash_load_optical_targets(int *h1, int *h2, int *v1, int *v2)
-{
-    if (h1) *h1 = (int)flash_rd32(FLASH_OPT_H1);
-    if (h2) *h2 = (int)flash_rd32(FLASH_OPT_H2);
-    if (v1) *v1 = (int)flash_rd32(FLASH_OPT_V1);
-    if (v2) *v2 = (int)flash_rd32(FLASH_OPT_V2);
 }
 
 /* ======================================================================

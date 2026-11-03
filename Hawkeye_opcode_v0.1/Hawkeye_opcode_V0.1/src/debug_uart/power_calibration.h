@@ -45,8 +45,11 @@ typedef enum {
 extern const char * const powcal_ch_names[POWCAL_CH_NUM];
 
 /* 目标光功率表 (x100, 单位 0.01mW)，索引对应 powcal_channel_t
- * 初值为 hawkeye_config.h 的 POWCAL_TARGET_* 宏；可经 AT+POWTARGET 运行时修改 */
+ * 初值为 hawkeye_config.h 的 POWCAL_TARGET_* 宏；可经 AT+POWTARGET 运行时修改（仅 RAM） */
 extern int powcal_targets[POWCAL_CH_NUM];
+
+/* 每路校准 DONE 时的实测光功率 (x100, 0.01mW)，AT+POWCAL=SAVE 落盘到 Optical 段 */
+extern int powcal_final_power[POWCAL_CH_NUM];
 
 /* ======================================================================
  *  公开 API
@@ -62,7 +65,7 @@ extern int powcal_targets[POWCAL_CH_NUM];
 powcal_status_t powcal_process(powcal_channel_t ch, int power);
 
 /**
- * @brief 保存全部三路校准结果到 Flash
+ * @brief 保存全部三路校准结果到 Flash（参考电压 + 实测光功率）
  * @return true=成功, false=失败
  */
 bool powcal_save(void);
@@ -75,13 +78,13 @@ bool powcal_save(void);
 int powcal_get_ref_mv(powcal_channel_t ch);
 
 /**
- * @brief 上电初始化: 从 Flash 恢复目标光功率, 无效则用默认宏
+ * @brief 上电初始化: 目标光功率恢复默认宏（仅 RAM，不从 Flash 读）
  * @note  在 flash_load_all() 之后调用一次
  */
 void powcal_init(void);
 
 /**
- * @brief 运行时设置某通道目标光功率 (x100, 0.01mW), 并写入 Flash 持久化
+ * @brief 运行时设置某通道目标光功率 (x100, 0.01mW)，仅存 RAM 掉电恢复默认宏
  * @param ch  通道 (0=H, 1=V1, 2=V2)
  * @param val 目标值, 如 240 = 2.40mW
  */
@@ -93,6 +96,13 @@ void powcal_set_target(powcal_channel_t ch, int val);
  * @return   目标值
  */
 int powcal_get_target(powcal_channel_t ch);
+
+/**
+ * @brief 查询某通道校准 DONE 时的实测光功率 (x100, 0.01mW)
+ * @param ch 通道
+ * @return   实测值（未校准为 0）
+ */
+int powcal_get_final_power(powcal_channel_t ch);
 
 /**
  * @brief 查询某通道当前状态
