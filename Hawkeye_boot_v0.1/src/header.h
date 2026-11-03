@@ -56,7 +56,7 @@
 /* ================================================================== */
 #define MODULE_ID_FIRST         {'N','A','8','3','7','3','3','0'}
 #define MODULE_ID_SECOND        {'N','A','8','3','7','3','3','0'}
-#define MODULE_REVISION         0x04U
+#define MODULE_REVISION         0x01U
 
 /* Honcho protocol constants */
 #define BYTES_MODULE_ID         8U
