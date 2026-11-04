@@ -39,6 +39,12 @@ static uint16_t g_calib_fail_cnt = 0;       /* 校准期间连续 I2C 读取失�
 static uint16_t g_calib_timeout_cnt = 0;    /* 校准总超时计数 (80ms/次), 6s 未完成判失败 */
 
 static int16_t acc[3];
+
+/* IMU 校准原始采样缓冲: 三轴各 CALIBRATION_TRIALS 个, 排序去极值后求均值 */
+static int16_t g_calib_buf_x[CALIBRATION_TRIALS];
+static int16_t g_calib_buf_y[CALIBRATION_TRIALS];
+static int16_t g_calib_buf_z[CALIBRATION_TRIALS];
+
 extern volatile uint8_t gSystemTickFlag;   /* 1ms节拍标志 */
 extern volatile int reference_voltage;
 extern volatile int reference_voltage1;
@@ -186,6 +192,37 @@ static void ntc_temp_protection_task(uint16_t ntc_adc)
     }
 }
 
+/** 插入排序 (升序): CALIBRATION_TRIALS 规模小, 插入排序足够且无递归/额外内存开销 */
+static void calib_sort_axis(int16_t *arr, uint16_t n)
+{
+    uint16_t i;
+    for (i = 1U; i < n; i++)
+    {
+        int16_t key = arr[i];
+        int16_t j   = (int16_t)i - 1;
+        while (j >= 0 && arr[j] > key)
+        {
+            arr[j + 1] = arr[j];
+            j--;
+        }
+        arr[j + 1] = key;
+    }
+}
+
+/** 排序去极值均值: 去掉两端各 CALIBRATION_TRIM_SIDES 个野值, 中间求均值 */
+static int16_t calib_trimmed_mean(int16_t *arr)
+{
+    int32_t sum = 0;
+    uint16_t i;
+
+    calib_sort_axis(arr, CALIBRATION_TRIALS);
+    for (i = CALIBRATION_TRIM_SIDES; i < (CALIBRATION_TRIALS - CALIBRATION_TRIM_SIDES); i++)
+    {
+        sum += arr[i];
+    }
+    return (int16_t)(sum / (int32_t)CALIBRATION_VALID_COUNT);
+}
+
 /** IMU 校准 + 姿态更新 */
 static void imu_calib_posture_task(void)
 {
@@ -230,9 +267,6 @@ static void imu_calib_posture_task(void)
                 g_calib_laser_on    = false;
                 g_calib_request     = false;
                 g_calib_cnt         = 0;
-                g_calib_sum[0]      = 0;
-                g_calib_sum[1]      = 0;
-                g_calib_sum[2]      = 0;
                 laser_serial_ctrl_all(false);   /* 内部 EN1_OFF + 三路清零 + Flash 回写 0 */
                 uart9_send_blocking("+RESP:CALIBRATION FAIL\r\n");
                 return;
@@ -243,9 +277,9 @@ static void imu_calib_posture_task(void)
         {
             wdt_feed();
             g_calib_fail_cnt = 0;
-            g_calib_sum[0] += acc[0];
-            g_calib_sum[1] += acc[1];
-            g_calib_sum[2] += acc[2];
+            g_calib_buf_x[g_calib_cnt] = acc[0];
+            g_calib_buf_y[g_calib_cnt] = acc[1];
+            g_calib_buf_z[g_calib_cnt] = acc[2];
             g_calib_cnt++;
 
             if (g_calib_cnt >= CALIBRATION_TRIALS)
@@ -270,9 +304,9 @@ static void imu_calib_posture_task(void)
                 set_laser2_200k_intensity(LASER_DEFAULT_DUTY, TIMER_PIN);
                 set_laser3_200k_intensity(LASER_IDLE_DUTY, GPT_IO_PIN_GTIOCA);
 
-                imu_offset[0] = (int16_t)(g_calib_sum[0] / CALIBRATION_TRIALS);
-                imu_offset[1] = (int16_t)(g_calib_sum[1] / CALIBRATION_TRIALS);
-                imu_offset[2] = (int16_t)(g_calib_sum[2] / CALIBRATION_TRIALS);
+                imu_offset[0] = calib_trimmed_mean(g_calib_buf_x);
+                imu_offset[1] = calib_trimmed_mean(g_calib_buf_y);
+                imu_offset[2] = calib_trimmed_mean(g_calib_buf_z);
 
                 char msg[64];
                 sprintf(msg, "+RESP:CALIB DONE X=%d Y=%d Z=%d\r\n",
@@ -290,9 +324,6 @@ static void imu_calib_posture_task(void)
             {
                 g_calib_fail_cnt = 0;
                 g_calib_cnt      = 0;
-                g_calib_sum[0]   = 0;
-                g_calib_sum[1]   = 0;
-                g_calib_sum[2]   = 0;
                 uart9_send_blocking("+RESP:CALIBRATION RETRY\r\n");
             }
         }
@@ -415,11 +446,11 @@ void hal_entry(void)
      *   0     10      0     按键扫描
      *   1     20      5     电源监控
      *   2     50     15     串口 + 电池
-     *   3     80     30     MEMS + 姿态
+     *   3    100     30     MEMS + 姿态
      *   4    500     40     低频任务
      *   5   1000     50     运行统计
      */
-    static const uint16_t PERIOD[] = { 10,  20,  50,  80,  500, 1000 };
+    static const uint16_t PERIOD[] = { 10,  20,  50, 100,  500, 1000 };
     static       uint16_t CNT[]    = {  0,   5,  15,  30,   40,   50 };
 
     /* I2C + IMU 初始化 (自动检测 IIM42351/ICM40608) */
@@ -547,7 +578,7 @@ void hal_entry(void)
                 }
             }
 
-            /* ---- 80ms 任务: MEMS + 姿态 ---- */
+            /* ---- 100ms 任务: MEMS + 姿态 ---- */
             if (++CNT[3] >= PERIOD[3])
             {
                 wdt_feed();

@@ -426,9 +426,6 @@ void Debug_UART9_ProcessReceivedData(void)
         {
             g_calib_request = true;
             g_calib_cnt = 0;
-            g_calib_sum[0] = 0;
-            g_calib_sum[1] = 0;
-            g_calib_sum[2] = 0;
             uart9_send_blocking("+RESP:CALIBRATION START\r\n");
         }
         break;

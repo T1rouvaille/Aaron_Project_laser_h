@@ -39,7 +39,6 @@ extern volatile angle_mode_t gAngleMode;
 
 extern volatile bool g_calib_request;
 extern uint16_t g_calib_cnt;
-extern int32_t g_calib_sum[3];
 
 /* 校准期间激光闪烁控制 */
 extern volatile bool g_calib_laser_flash;   /* true=校准进行中, 激光闪烁 */

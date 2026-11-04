@@ -19,8 +19,8 @@
 #define HAWKEYE_VERSION_MAJOR   0                   /* 主版本号 */
 #define HAWKEYE_VERSION_MINOR   0                   /* 次版本号 */
 #define HAWKEYE_VERSION_PATCH   0                   /* 修订号 */
-#define HAWKEYE_VERSION_BUILD   1                   /* 构建号 */
-#define HAWKEYE_VERSION_STR     "0.0.0.1"           /* 版本字符串 */
+#define HAWKEYE_VERSION_BUILD   2                   /* 构建号 */
+#define HAWKEYE_VERSION_STR     "0.0.0.2"           /* 版本字符串 */
 
 /* 硬件/固件版本字符串（Stepper 标准 Module ID 属性, 写入 devinfo @320） */
 #define HAWKEYE_HW_REVISION_STR "A1"                /* 硬件版本 (PCB/装配版本) */
@@ -185,8 +185,10 @@
 /* ======================================================================
  *  IMU (IIM42351) 参数
  * ====================================================================== */
-#define CALIBRATION_TRIALS      (32)       /* 校准采样次数 */
-#define CALIBRATION_TIMEOUT_CNT (75U)      /* 校准总超时: 75 × 80ms = 6s, 超过判失败 */
+#define CALIBRATION_TRIALS      (32U)      /* 校准采样总数 (排序去极值前) */
+#define CALIBRATION_TRIM_SIDES  (8U)       /* 排序后去掉两端各 8 个野值 (共去 16) */
+#define CALIBRATION_VALID_COUNT (CALIBRATION_TRIALS - 2U * CALIBRATION_TRIM_SIDES) /* 中间有效样本数 = 16 */
+#define CALIBRATION_TIMEOUT_CNT (60U)      /* 校准总超时: 60 × 100ms = 6s, 超过判失败 */
 #define IMU_WARMUP_DISCARD      (10U)      /* 上电预热丢弃前 N 次采样, 等待 MEMS 稳定 */
 
 /* Z 轴零偏额外补偿 (LSB): 在校准值 imu_offset[2] 基础上再减此值, 修正残留偏置 */

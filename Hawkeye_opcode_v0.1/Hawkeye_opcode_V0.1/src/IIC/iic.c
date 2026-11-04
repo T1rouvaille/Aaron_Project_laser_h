@@ -22,7 +22,6 @@
 #include "hawkeye_config.h"
 volatile bool g_calib_request = false;
 uint16_t g_calib_cnt = 0;
-int32_t g_calib_sum[3] = {0, 0, 0};
 
 volatile bool g_imu_debug_enabled = false;   /* AT+IMUDBG=1 开启实时角度打印 */
 
@@ -73,6 +72,10 @@ static volatile bool g_i2c_done = false;
 
 int16_t imu_offset[3] = {0, 0, 0};
 static imu_sensor_t g_imu_sensor = IMU_SENSOR_NONE;  /* 当前检测到的传感器类型 */
+
+/* ========== I2C 复位恢复 ========== */
+#define I2C_FAIL_RESET_THRESHOLD   (10U)  /* 连续读取失败 N 次后触发 I2C 复位恢复 */
+static uint16_t g_i2c_fail_cnt = 0;       /* 连续读取失败计数 */
 
 
 static angle_mode_t gPendingMode = ANGLE_MODE_4_10;  // 待切换的模式
@@ -380,24 +383,88 @@ const char *imu_get_sensor_model(void)
     }
 }
 
+/* ========== I2C 复位恢复: Abort + Close + Open + 重检测传感器 ========== */
+static int8_t imu_i2c_recover(void)
+{
+    fsp_err_t err;
+
+    uart9_send_blocking("+RESP:I2C RECOVER\r\n");
+    wdt_feed();
+
+    /* 1. 中止可能卡住的传输 */
+    err = R_IIC_MASTER_Abort(&g_i2c_master0_ctrl);
+    (void)err;
+
+    /* 2. 关闭通道 (复位 IIC 模块内部状态) */
+    err = R_IIC_MASTER_Close(&g_i2c_master0_ctrl);
+    (void)err;
+
+    /* 3. 重新打开 */
+    err = R_IIC_MASTER_Open(&g_i2c_master0_ctrl, &g_i2c_master0_cfg);
+    if (err != FSP_SUCCESS)
+    {
+        return -1;
+    }
+
+    /* 4. 重新检测并配置传感器 (内部含 wdt_feed) */
+    if (imu_init(1) != 0)
+    {
+        return -1;
+    }
+
+    return 0;
+}
+
 /* ========== 统一读取加速度 (根据传感器类型分发) ========== */
 int8_t imu_get_acc(int16_t* acc)
 {
+    int8_t ret;
+
+    /* 传感器丢失(含恢复失败)也走计数逻辑, 保证后续能重试恢复 */
     if (g_imu_sensor == IMU_SENSOR_NONE)
     {
         acc[0] = 0;
         acc[1] = 0;
         acc[2] = 0;
-        return -1;
+        ret = -1;
     }
-
     /* LSM6DSOTR 数据格式不同 (Little Endian), 使用独立读取函数 */
-    if (g_imu_sensor == IMU_SENSOR_LSM6DSOTR)
+    else if (g_imu_sensor == IMU_SENSOR_LSM6DSOTR)
     {
-        return lsm6dsotr_get_acc(acc);
+        ret = lsm6dsotr_get_acc(acc);
+    }
+    else
+    {
+        ret = IIM42351_getAcc(acc);
     }
 
-    return IIM42351_getAcc(acc);
+    /* 读取失败: 累计连续失败次数, 达到阈值后复位 I2C 总线恢复 */
+    if (ret != 0)
+    {
+        g_i2c_fail_cnt++;
+        if (g_i2c_fail_cnt >= I2C_FAIL_RESET_THRESHOLD)
+        {
+            g_i2c_fail_cnt = 0;
+            if (imu_i2c_recover() == 0)
+            {
+                /* 恢复成功后立即重读一次, 避免本周期姿态漏更新 */
+                if (g_imu_sensor == IMU_SENSOR_LSM6DSOTR)
+                {
+                    ret = lsm6dsotr_get_acc(acc);
+                }
+                else if (g_imu_sensor != IMU_SENSOR_NONE)
+                {
+                    ret = IIM42351_getAcc(acc);
+                }
+            }
+        }
+    }
+    else
+    {
+        g_i2c_fail_cnt = 0;
+    }
+
+    return ret;
 }
 
 void IIM42351_calibration(void)
