@@ -77,7 +77,6 @@ static void flash_buf_load(void)
 static fsp_err_t flash_buf_flush(void)
 {
     fsp_err_t err;
-    bool      write_phase   = false;
 
     /* Data Flash 擦写走 FSP r_flash_lp 的 FRDY 中断，无需禁中断/停 SysTick。
      * 若关中断会冻结 GPT9 1ms ISR，拉长 0-4° 采样低相位 → 激光闪。 */
@@ -88,18 +87,11 @@ static fsp_err_t flash_buf_flush(void)
 
     if (err == FSP_SUCCESS)
     {
-        write_phase = true;
         wdt_feed();  /* Flash写入前喂狗, 防止WDT超时 */
         err = R_FLASH_LP_Write(&g_flash0_ctrl,
                                (uint32_t)g_flash_buf,
                                FLASH_BLOCK_CALIBRATION,
                                FLASH_TOTAL_SIZE);     /* 384 字节一次写入 */
-    }
-
-    if (err != FSP_SUCCESS)
-    {
-        uart9_send_blocking(write_phase ? "+RESP:FLASH WRITE FAIL\r\n"
-                                        : "+RESP:FLASH ERASE FAIL\r\n");
     }
 
     return err;

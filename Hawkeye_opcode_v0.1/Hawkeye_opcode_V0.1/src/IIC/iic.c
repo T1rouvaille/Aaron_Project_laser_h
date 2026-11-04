@@ -189,7 +189,6 @@ static int8_t imu_chip_init(uint8_t highSampleRate, uint8_t who_am_i)
     err = iim42351_write_reg(MPUREG_ACCEL_CONFIG0, data);
     if (err != FSP_SUCCESS)
     {
-        uart9_send_blocking("+RESP:SET ACCEL_CONFIG0 FAIL\r\n");
         return -1;
     }
 
@@ -197,7 +196,6 @@ static int8_t imu_chip_init(uint8_t highSampleRate, uint8_t who_am_i)
     err = iim42351_write_reg(MPUREG_PWR_MGMT_0, IIM423XX_PWR_MGMT_0_ACCEL_MODE_LN);
     if (err != FSP_SUCCESS)
     {
-        uart9_send_blocking("+RESP:SET PWR_MGMT_0 FAIL\r\n");
         return -1;
     }
 
@@ -251,7 +249,6 @@ static int8_t lsm6dsotr_chip_init(uint8_t highSampleRate)
     err = iim42351_write_reg(LSM6DSO_CTRL1_XL, data);
     if (err != FSP_SUCCESS)
     {
-        uart9_send_blocking("+RESP:SET CTRL1_XL FAIL\r\n");
         return -1;
     }
 
@@ -259,7 +256,6 @@ static int8_t lsm6dsotr_chip_init(uint8_t highSampleRate)
     err = iim42351_write_reg(LSM6DSO_CTRL2_G, 0x00);
     if (err != FSP_SUCCESS)
     {
-        uart9_send_blocking("+RESP:SET CTRL2_G FAIL\r\n");
         return -1;
     }
 
@@ -269,7 +265,6 @@ static int8_t lsm6dsotr_chip_init(uint8_t highSampleRate)
     err = iim42351_write_reg(LSM6DSO_CTRL3_C, LSM6DSO_BDU | LSM6DSO_IF_INC);
     if (err != FSP_SUCCESS)
     {
-        uart9_send_blocking("+RESP:SET CTRL3_C FAIL\r\n");
         return -1;
     }
 
@@ -278,7 +273,6 @@ static int8_t lsm6dsotr_chip_init(uint8_t highSampleRate)
     err = iim42351_write_reg(LSM6DSO_CTRL6_C, 0x00);
     if (err != FSP_SUCCESS)
     {
-        uart9_send_blocking("+RESP:SET CTRL6_C FAIL\r\n");
         return -1;
     }
 
@@ -342,7 +336,6 @@ int8_t imu_init(uint8_t highSampleRate)
     if (imu_chip_init(highSampleRate, IIM_WHO_AM_I_DEFAULT) == 0)
     {
         g_imu_sensor = IMU_SENSOR_IIM42351;
-        uart9_send_blocking("+RESP:IMU IIM42351\r\n");
         return 0;
     }
     wdt_feed();  /* 传感器探测失败后喂狗, 防止连续I2C超时触发WDT */
@@ -351,7 +344,6 @@ int8_t imu_init(uint8_t highSampleRate)
     if (imu_chip_init(highSampleRate, ICM_WHO_AM_I_DEFAULT) == 0)
     {
         g_imu_sensor = IMU_SENSOR_ICM40608;
-        uart9_send_blocking("+RESP:IMU ICM40608\r\n");
         return 0;
     }
     wdt_feed();  /* 传感器探测失败后喂狗, 防止连续I2C超时触发WDT */
@@ -360,14 +352,12 @@ int8_t imu_init(uint8_t highSampleRate)
     if (lsm6dsotr_chip_init(highSampleRate) == 0)
     {
         g_imu_sensor = IMU_SENSOR_LSM6DSOTR;
-        uart9_send_blocking("+RESP:IMU LSM6DSOTR\r\n");
         return 0;
     }
 
     /* 所有传感器均未检测到, 恢复默认 I2C 地址 */
     i2c_set_slave_addr(0x69);
     g_imu_sensor = IMU_SENSOR_NONE;
-    uart9_send_blocking("+RESP:IMU NOT FOUND\r\n");
     return -1;
 }
 
@@ -388,7 +378,6 @@ static int8_t imu_i2c_recover(void)
 {
     fsp_err_t err;
 
-    uart9_send_blocking("+RESP:I2C RECOVER\r\n");
     wdt_feed();
 
     /* 1. 中止可能卡住的传输 */
