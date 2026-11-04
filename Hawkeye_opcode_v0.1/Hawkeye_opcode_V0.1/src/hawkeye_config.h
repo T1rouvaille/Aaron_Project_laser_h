@@ -232,6 +232,7 @@
  *  NTC 控制板温度保护 (ADC CH10)
  * ====================================================================== */
 #define NTC_OVERHEAT_THRESHOLD      670     /* NTC ADC < 此值 → >80°C, 触发高温保护 (80°C≈670, 估算) */
+#define NTC_OVERHEAT_HYST           200     /* 高温恢复滞回 (ADC值), 需高于(阈值+回差)=870 才重新武装 */
 #define NTC_LOW_TEMP_THRESHOLD      3150    /* NTC ADC > 此值 → <-7°C, 标记低温 */
 #define NTC_LOW_TEMP_HYST           100     /* 低温恢复滞回 (ADC值), 需低于(阈值-回差)才退出 */
 #define NTC_TEMP_CONFIRM_COUNT      5       /* 连续确认次数 (5×20ms=100ms消抖) */

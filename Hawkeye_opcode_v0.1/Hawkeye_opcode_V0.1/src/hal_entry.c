@@ -168,7 +168,11 @@ static void ntc_temp_protection_task(uint16_t ntc_adc)
         /* 正常温度区间 */
         ntc_overheat_cnt = 0;
         ntc_low_temp_cnt  = 0;
-        ntc_hot_latched   = false;
+        /* 高温 latch 复位带滞回: ADC 需高于(阈值+回差)才重新武装, 防 80°C 附近抖动反复计数 */
+        if (ntc_adc > (NTC_OVERHEAT_THRESHOLD + NTC_OVERHEAT_HYST))
+        {
+            ntc_hot_latched = false;
+        }
         ntc_cold_latched  = false;
 
         /* 低温恢复: 带滞回, 需低于 (阈值 - 回差) 连续 N 次才退出 */
