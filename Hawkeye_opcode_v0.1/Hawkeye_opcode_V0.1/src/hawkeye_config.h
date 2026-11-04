@@ -272,7 +272,7 @@
  *  通道: H(SIDE) / V1(HORIZ) / V2(FRONT)
  * ====================================================================== */
 /* 目标光功率 (x100, 单位 0.01mW) */
-#define POWCAL_TARGET_H         240     /* H  目标 2.40mW */
+#define POWCAL_TARGET_H         220     /* H  目标 2.20mW */
 #define POWCAL_TARGET_V1        120     /* V1 目标 1.20mW */
 #define POWCAL_TARGET_V2        120     /* V2 目标 1.20mW */
 
