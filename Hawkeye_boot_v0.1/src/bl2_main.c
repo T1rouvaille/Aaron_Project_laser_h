@@ -82,6 +82,12 @@ static uint8_t * put_str(uint8_t *p, const char *s)
         (_lv == BSP_IO_LEVEL_HIGH);                                      \
     })
 
+/* 开机锁定开关去抖：连续 N 次读到 HIGH(锁 OFF) 才判定关机
+ *  每次间隔 2ms，总窗口 10ms，防止开锁/触点抖动误判关机
+ *  (与 App hawkeye_config.h 的 LOCK_SW_BOOT_CONFIRM_* 保持一致) */
+#define BOOT_LOCK_SW_CONFIRM_COUNT  (5U)
+#define BOOT_LOCK_SW_CONFIRM_MS     (2U)
+
 /* ADC 扫描完成回调 — 设置标志位, 与 App bsp_adc.c 逻辑一致 */
 volatile bool g_boot_scan_complete = false;
 void adc_callback(adc_callback_args_t *p_args)
@@ -427,21 +433,34 @@ int bl2_main(void)
 #endif
 
     /* ==================================================================
-     *  锁定开关检测 — 关机状态直接断电，不跳转 APP
+     *  锁定开关检测 — 去抖确认，防止开锁/触点抖动误判关机
      *  必须在 Phase 0 之前执行，防止 APP 有效时跳过检测
-     *  P407=HIGH → 锁定开关 OFF → 切断电源, 死循环等电容放电
-     *  P407=LOW  → 锁定开关 ON  → 继续正常开机流程
+     *  连续 N 次读到 P407=HIGH → 锁定开关确实 OFF → 切断电源, 死循环等电容放电
+     *  任一一次读到 LOW → 锁定开关 ON(或抖动) → 继续正常开机流程
      * ================================================================== */
-    if (BOOT_LOCK_SW_IS_OFF())
     {
-        LED1_OFF; LED2_OFF; LED3_OFF;
-        BOOT_Batt_OFF;
-        BOOT_Power_En_OFF;
-        BOOT_EN1_OFF;
-        while (1)
+        uint32_t lock_high_count = 0U;
+
+        for (uint32_t i = 0U; i < BOOT_LOCK_SW_CONFIRM_COUNT; i++)
         {
-            /* 不喂狗, CPU休眠等电容放电, 自然断电 */
-            __WFI();
+            if (BOOT_LOCK_SW_IS_OFF())
+            {
+                lock_high_count++;
+            }
+            R_BSP_SoftwareDelay(BOOT_LOCK_SW_CONFIRM_MS, BSP_DELAY_UNITS_MILLISECONDS);
+        }
+
+        if (lock_high_count == BOOT_LOCK_SW_CONFIRM_COUNT)
+        {
+            LED1_OFF; LED2_OFF; LED3_OFF;
+            BOOT_Batt_OFF;
+            BOOT_Power_En_OFF;
+            BOOT_EN1_OFF;
+            while (1)
+            {
+                /* 不喂狗, CPU休眠等电容放电, 自然断电 */
+                __WFI();
+            }
         }
     }
     /* IBOX Honcho PR3 早期握手检测 (9600 波特率) */
