@@ -375,13 +375,24 @@ void hal_entry(void)
     LED_Init();
     //system_power_on();
 
-    /* 开机锁定开关检测：关闭状态(P407=HIGH)则复位 */
+    /* 开机锁定开关检测：去抖确认，防止开锁/触点抖动误判关机 */
     {
         bsp_io_level_t lock_level;
-        R_IOPORT_PinRead(&g_ioport_ctrl, BSP_IO_PORT_04_PIN_07, &lock_level);
-        if (lock_level == BSP_IO_LEVEL_HIGH)
+        uint32_t lock_high_count = 0U;
+
+        for (uint32_t i = 0U; i < LOCK_SW_BOOT_CONFIRM_COUNT; i++)
         {
-            /* 锁定开关处于关闭位置，切断电源并软件复位 */
+            R_IOPORT_PinRead(&g_ioport_ctrl, BSP_IO_PORT_04_PIN_07, &lock_level);
+            if (lock_level == BSP_IO_LEVEL_HIGH)
+            {
+                lock_high_count++;
+            }
+            R_BSP_SoftwareDelay(LOCK_SW_BOOT_CONFIRM_MS, BSP_DELAY_UNITS_MILLISECONDS);
+        }
+
+        if (lock_high_count == LOCK_SW_BOOT_CONFIRM_COUNT)
+        {
+            /* 连续 N 次读到 HIGH，锁定开关确实处于关闭位置，切断电源并软件复位 */
             LED1_OFF; LED2_OFF; LED3_OFF;
             Batt_OFF;
             Power_En_OFF;

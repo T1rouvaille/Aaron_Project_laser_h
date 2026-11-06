@@ -84,6 +84,12 @@
  *  5 次 × 10ms = 50ms，避免接触抖动或干扰误关机 */
 #define LOCK_SW_RUNTIME_CONFIRM_COUNT  (5U)
 
+/* 开机锁定开关去抖：连续 N 次读到 HIGH(锁 OFF) 才判定关机
+ *  每次间隔 2ms，总窗口 10ms，防止开锁/触点抖动误判关机
+ *  (与 boot bl2_main.c 的 BOOT_LOCK_SW_CONFIRM_* 保持一致) */
+#define LOCK_SW_BOOT_CONFIRM_COUNT  (5U)
+#define LOCK_SW_BOOT_CONFIRM_MS     (2U)
+
 /* 锁定开关松开 (P407=HIGH) 后的延时关机: 5s 内重新锁定可取消, 超时关机
  *  lock_sw_read() 每 10ms 调用一次, 故 tick 数 = 秒数 × 100 */
 #define LOCK_SUSPEND_TIMEOUT_S        (5U)
