@@ -517,7 +517,7 @@ void laser_main_loop_task(void)
                         uart9_send_blocking(msg);*/
                     }
                     laser_adjust_duty((int)pd_avg, reference_voltage,
-                                      &duty00, 260, 40,
+                                      &duty00, LASER_DUTY_MAX_V2, 40,
                                       set_laser1_200k_intensity,
                                       TIMER_PIN, "V2",
                                       (int)current_mA, CURRENT_LIMIT_V2_MA);
@@ -562,7 +562,7 @@ void laser_main_loop_task(void)
                     uart9_send_blocking(msg);*/
                 }
                 laser_adjust_duty((int)pd_avg1, reference_voltage1,
-                                  &duty11, 350, 40,
+                                  &duty11, LASER_DUTY_MAX_H, 40,
                                   set_laser2_200k_intensity,
                                   TIMER_PIN, "H",
                                   (int)current_mA1, CURRENT_LIMIT_H_MA);
@@ -607,7 +607,7 @@ void laser_main_loop_task(void)
                     uart9_send_blocking(msg);*/
                 }
                 laser_adjust_duty((int)pd_avg2, reference_voltage2,
-                                  &duty22, 260, 40,
+                                  &duty22, LASER_DUTY_MAX_V1, 40,
                                   set_laser3_200k_intensity,
                                   GPT_IO_PIN_GTIOCA, "V1",
                                   (int)current_mA2, CURRENT_LIMIT_V1_MA);
@@ -684,12 +684,16 @@ void laser_mode_0_4deg(void)
     }
     else if (pwm_cycle_counter == 5)
     {
-         //===== 5ms: 切换到高电平 =====
+         //===== 5ms: 仅 8.47kHz 恢复 100%（100kHz 继续低相位 → 低相位共 5ms）=====
 
         // 8.47kHz设置为100%
         set_laser1_8470_intensity(6500, GPT_IO_PIN_GTIOCA);
         set_laser2_8470_intensity(6500, TIMER_PIN);          // ← 改这里，GTIOCA改成TIMER_PIN
         set_laser3_8470_intensity(6500, GPT_IO_PIN_GTIOCA);
+    }
+    else if (pwm_cycle_counter == 6)
+    {
+         //===== 6ms: 100kHz 恢复满 duty + 打开采样窗口 =====
 
         // ✅ 200kHz同时开启(只设置一次!)
         if (gLaserOn[2])
@@ -869,7 +873,7 @@ void laser_mode_10_90deg(void)
 
     /* ========= 后3.5s：同0–4° ========= */
 
-    /* 200kHz 常开 */
+    /* 200kHz 常开（低相位由下方覆盖为 low_duty） */
     if (gLaserOn[2]) set_laser1_200k_intensity(duty00, TIMER_PIN);
 
 
@@ -882,7 +886,40 @@ void laser_mode_10_90deg(void)
     t10_sub_ms++;
     if (t10_sub_ms >= 48) t10_sub_ms = 0;
 
-    if (t10_sub_ms < 44)
+    /* 低相位 duty（100kHz 低相位延后 1ms 结束 → 共 5ms；8.47kHz 仍 4ms） */
+    uint32_t low_duty0;
+    uint32_t low_duty1;
+    uint32_t low_duty2;
+
+    if (gLaserOn[2])
+        low_duty0 = (duty00 * LOW_PHASE_DUTY_PERCENT) / 100U;
+    else
+        low_duty0 = 20;
+
+    if (gLaserOn[0])
+        low_duty1 = (duty11 * LOW_PHASE_DUTY_PERCENT) / 100U;
+    else
+        low_duty1 = 20;
+
+    if (gLaserOn[1])
+        low_duty2 = (duty22 * LOW_PHASE_DUTY_PERCENT) / 100U;
+    else
+        low_duty2 = 20;
+
+    if (t10_sub_ms == 0)
+    {
+        /* 100kHz 低相位延后 1ms 结束：8.47kHz 恢复 100%，100kHz 仍低 → 不采样 */
+        set_laser1_8470_intensity(6500, GPT_IO_PIN_GTIOCA);
+        set_laser2_8470_intensity(6500, TIMER_PIN);
+        set_laser3_8470_intensity(6500, GPT_IO_PIN_GTIOCA);
+
+        set_laser1_200k_intensity(low_duty0, TIMER_PIN);
+        set_laser2_200k_intensity(low_duty1, TIMER_PIN);
+        set_laser3_200k_intensity(low_duty2, GPT_IO_PIN_GTIOCA);
+
+        pwm_in_high_phase = false;
+    }
+    else if (t10_sub_ms < 44)
     {
         /* 8.47kHz = 100% → 采样 */
         /*if (gLaserOn[0])*/ set_laser1_8470_intensity(6500, GPT_IO_PIN_GTIOCA);
@@ -908,26 +945,6 @@ void laser_mode_10_90deg(void)
         set_laser1_8470_intensity(2834, GPT_IO_PIN_GTIOCA);
         set_laser2_8470_intensity(2834, TIMER_PIN);
         set_laser3_8470_intensity(2834, GPT_IO_PIN_GTIOCA);
-
-        //2---------00kHz 对应减15
-        uint32_t low_duty0;
-        uint32_t low_duty1;
-        uint32_t low_duty2;
-
-        if (gLaserOn[2])
-            low_duty0 = (duty00 * LOW_PHASE_DUTY_PERCENT) / 100U;
-        else
-            low_duty0 = 20;
-
-        if (gLaserOn[0])
-            low_duty1 = (duty11 * LOW_PHASE_DUTY_PERCENT) / 100U;
-        else
-            low_duty1 = 20;
-
-        if (gLaserOn[1])
-            low_duty2 = (duty22 * LOW_PHASE_DUTY_PERCENT) / 100U;
-        else
-            low_duty2 = 20;
 
         set_laser1_200k_intensity(low_duty0, TIMER_PIN);
         set_laser2_200k_intensity(low_duty1, TIMER_PIN);

@@ -109,6 +109,12 @@
 #define LASER_IDLE_DUTY         (20U)       /* 激光空闲 duty (关闭时载波维持) */
 #define LASER_CHANNEL_COUNT     (3U)        /* 激光通道数 */
 
+/* 各通道最大 duty（200kHz 强度 PWM 周期=480 counts，恒压 PID 能顶到的上限）
+ * H=250(52%) / V1=210(44%) / V2=210(44%) — 2026-11-07 按烧管风险下调 */
+#define LASER_DUTY_MAX_H        (250U)
+#define LASER_DUTY_MAX_V1       (210U)
+#define LASER_DUTY_MAX_V2       (210U)
+
 /* 低电平阶段 duty 比例 (%)，用于 0-4° 和 10-90° 模式 */
 #define LOW_PHASE_DUTY_PERCENT  (66U)
 
@@ -164,9 +170,9 @@
 #define CURRENT_LIMIT_CONFIRM_COUNT  (5U)
 
 /* 各通道限流阈值 (mA)，超过后触发恒流保护 */
-#define CURRENT_LIMIT_V2_MA    (350U)   /* V2(FRONT) 限流 280mA */
-#define CURRENT_LIMIT_H_MA     (420U)   /* H(SIDE)   限流 400mA */
-#define CURRENT_LIMIT_V1_MA    (350U)   /* V1(HORIZ) 限流 280mA */
+#define CURRENT_LIMIT_V2_MA    (260U)   /* V2(FRONT) 限流 280mA */
+#define CURRENT_LIMIT_H_MA     (370U)   /* H(SIDE)   限流 400mA */
+#define CURRENT_LIMIT_V1_MA    (260U)   /* V1(HORIZ) 限流 280mA */
 
 /* 上电预检测 (EN1 拉高前) 电流阈值 (mA): 任一激光管电流超过此值则不拉 EN1 */
 #define PRE_EN1_CURRENT_LIMIT_MA   (60U)
