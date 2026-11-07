@@ -54,6 +54,17 @@ void laser_was_connected_reset(uint8_t glaser_idx)
     }
 }
 
+void laser_was_connected_set(uint8_t glaser_idx)
+{
+    if (glaser_idx < 3)
+    {
+        int laser_idx = (glaser_idx + 1) % 3;
+        /* 合法恢复: 直接标记"曾经接通", 使"电流建立边沿检测"不再误判为带电插入。
+         * "带电拔出"检测(PD≈0 且电流≈0)仍依赖此标志生效, 不受影响。 */
+        laser_was_connected[laser_idx] = true;
+    }
+}
+
 laser_safety_result_t laser_safety_hotplug_check(int laser_idx,
                                                  int avg_pd,
                                                  int current_mA)

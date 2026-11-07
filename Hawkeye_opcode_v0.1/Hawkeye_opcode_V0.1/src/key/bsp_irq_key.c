@@ -670,6 +670,9 @@ static void lock_restore_process(void)
         if (lock_restore_mask & (1u << i))
         {
             laser_serial_ctrl(i, true);
+            /* lock 恢复属合法操作: 标记"曾经接通", 跳过带电插入检测,
+             * 避免慢速电流建立被误判为 LASER_HOTPLUG。 */
+            laser_was_connected_set(i);
             lock_restore_mask &= (uint8_t)~(1u << i);
             break;  /* 只开一路, 等 MOS 完成 */
         }
