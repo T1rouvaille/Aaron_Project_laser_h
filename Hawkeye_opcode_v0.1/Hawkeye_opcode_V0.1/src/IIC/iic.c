@@ -505,15 +505,27 @@ void IIM42351_calibration(void)
     wdt_feed();
 }
 
+/* 开机/lock 恢复恒高锁定计数: 上电或 lock 重新合上后固定时长内强制 UNCAL
+ * (8.47kHz 恒高、不调制 → 无 4ms 低相位), 用作 IMU 稳定缓冲 / 激光预热缓冲。
+ * posture_update 由主循环 100ms 槽(imu_calib_posture_task)调用, 每 100ms 递减一次。
+ * 文件级 static: 复位由启动代码置满值; lock 恢复由 posture_hold_restart() 重新置满值。 */
+static uint16_t poweron_hold_ticks = POWERON_HOLD_MS / 100U;
+
+void posture_hold_restart(void)
+{
+    poweron_hold_ticks = POWERON_HOLD_MS / 100U;
+    /* 立即强制 UNCAL(恒高): poweron_hold_ticks 要等下一个 100ms 槽
+     * (posture_update) 才生效, 若此刻 gAngleMode 仍是 0-4°, 激光恢复后
+     * 会先输出几个 4ms 低相位; 这里直接拉高, 消除窗口期残留 4ms。 */
+    gAngleMode = ANGLE_MODE_UNCAL;
+}
+
 void posture_update(int16_t *acc)
 {
 
     if (gAngleMode == ANGLE_MODE_OVERHEAT) return;  /* 高温期间禁止切换 */
 
-    /* 开机恒高锁定: 上电后固定时长内强制 UNCAL(8.47kHz 恒高、不调制),
-     * 消除冷/热启动 IMU 稳定速度差异导致的时序不一致。每 10ms 递减一次。
-     * static 局部变量随复位由启动代码重新初始化, 保证冷/热启动都从满值倒数。 */
-    static uint16_t poweron_hold_ticks = POWERON_HOLD_MS / 10U;
+    /* 恒高锁定递减: 满值期内强制 UNCAL(见文件级 poweron_hold_ticks 定义)。 */
     if (poweron_hold_ticks > 0U)
     {
         poweron_hold_ticks--;

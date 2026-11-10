@@ -48,13 +48,6 @@ void laser_opening_set(uint8_t glaser_idx);
 void laser_was_connected_reset(uint8_t glaser_idx);
 
 /**
- * @brief 标记某通道"曾经接通" (用于 lock 松开→重开等确定合法的恢复场景)。
- *        恢复属合法操作, 跳过"带电插入"检测; 但"带电拔出"检测(PD≈0且电流≈0)仍生效。
- *        参数 glaser_idx = gLaserOn[] 索引 (0/1/2)。
- */
-void laser_was_connected_set(uint8_t glaser_idx);
-
-/**
  * @brief 带电插拔 / 激光管故障检测, 每个调光周期调用一次。
  *
  * @param laser_idx   通道索引 (0=V2, 1=H, 2=V1)

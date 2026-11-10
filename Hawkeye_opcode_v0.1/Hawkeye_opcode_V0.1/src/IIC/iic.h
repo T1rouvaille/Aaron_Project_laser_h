@@ -75,6 +75,7 @@ typedef enum
 
 //-----
 void posture_update(int16_t *acc);
+void posture_hold_restart(void);
 
 fsp_err_t i2c_master_init(void);
 fsp_err_t iim42351_read_reg(uint8_t reg, uint8_t *data);

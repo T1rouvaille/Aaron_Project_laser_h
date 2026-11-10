@@ -19,6 +19,8 @@
 extern volatile bool g_ntc_low_temp;
 /* 上电预检测 (定义在 bsp_adc.c, 声明在 bsp_adc.h) */
 extern pre_en1_result_t laser_pre_en1_detect_step(void);
+/* 恒高锁定重置 (定义在 iic.c, lock 恢复时调用) */
+extern void posture_hold_restart(void);
 
 typedef enum
 {
@@ -31,6 +33,7 @@ typedef enum
 static mos_state_t mos_state      = MOS_IDLE;
 static uint16_t    mos_delay_ms   = 0;
 static int8_t      mos_pending_ch = -1;
+static bool        mos_all_off    = false;  /* 全关路径: 延迟清三路, 让 8.47kHz 维持正常节拍 */
 static uint16_t    key_startup_ignore_ms = 0;
 static uint16_t    key_release_confirm_ms = 0;
 static bool        key_input_armed = false;
@@ -44,6 +47,10 @@ key_t keys[] = {
 volatile uint8_t gLaserOn[3] = {0, 0, 0};
 volatile uint8_t g_lock_led_override = 0;   /* 锁定开关 HIGH 时 LED 强制关闭标志 */
 volatile uint8_t g_led_show_all = 0;        /* 重新锁定后 LED 全亮展示标志 */
+
+static uint8_t  lock_saved_mask;     /* HIGH 瞬间激光快照 (bit0=H,bit1=V1,bit2=V2) */
+static uint8_t  lock_restore_mask;   /* 待恢复掩码, 0=无待恢复 */
+static bool     lock_deferred_save;  /* lock 松开: 延迟落盘标志, 待 8.47kHz 拉低后再写 flash */
 
 /* 锁定开关状态机状态 (提前定义, 供 key_handle_events 判断) */
 typedef enum {
@@ -408,10 +415,31 @@ void key_en_delay_task_1ms(void)
     else if (mos_state == MOS_WAIT_PWM_THEN_OFF)
     {
         /* 最后一路关闭：EN1已关10ms，关所有PWM */
-        gLaserOn[mos_pending_ch] = 0;
+        if (mos_all_off)
+        {
+            /* 全关：清三路 */
+            gLaserOn[0] = 0;
+            gLaserOn[1] = 0;
+            gLaserOn[2] = 0;
+            mos_all_off = false;
+        }
+        else
+        {
+            /* 单路关闭：只清该路 */
+            gLaserOn[mos_pending_ch] = 0;
+        }
         all_carrier_off();
         mos_pending_ch = -1;
         mos_state = MOS_IDLE;
+
+        /* lock 松开: 8.47kHz 已由 all_carrier_off() 拉低, 此时再落盘 flash
+         * 擦写冻结 ISR 也不会造成 50% 冻结 (PWM 已为低)。 */
+        if (lock_deferred_save)
+        {
+            lock_deferred_save = false;
+            flash_save_laser_state(lock_saved_mask);
+            flash_save_stats(stats_get_ptr());
+        }
     }
 }
 
@@ -620,11 +648,11 @@ bool laser_serial_ctrl_all(bool on)
         if (gLaserOn[0]) duty11 = 60;
         if (gLaserOn[1]) duty22 = 60;
 
-        gLaserOn[0] = 0;
-        gLaserOn[1] = 0;
-        gLaserOn[2] = 0;
-
-        mos_pending_ch = 0;  /* 占位，key_en_delay_task_1ms 会冗余清零 */
+        /* 保持 gLaserOn 不清零: 让 laser_pwm_tick_isr 在 EN1 关断后的
+         * 10ms 窗口内继续跑, 8.47kHz 维持正常节拍(4ms 50% + 44ms 100%),
+         * 避免冻结在 50%。10ms 后由 key_en_delay_task_1ms 统一清三路。 */
+        mos_all_off    = true;
+        mos_pending_ch = -1;
         mos_delay_ms   = 0;
         mos_state      = MOS_WAIT_PWM_THEN_OFF;
 
@@ -656,9 +684,6 @@ void lock_sw_boot_check(void)
  * 20s 超时: 真正关机
  * 引脚电平每次变化均通过串口上报 */
 
-static uint8_t  lock_saved_mask;     /* HIGH 瞬间激光快照 (bit0=H,bit1=V1,bit2=V2) */
-static uint8_t  lock_restore_mask;   /* 待恢复掩码, 0=无待恢复 */
-
 /* 恢复激光: 分步执行, 每 10ms 周期最多恢复一路 (等 MOS_IDLE) */
 static void lock_restore_process(void)
 {
@@ -670,9 +695,6 @@ static void lock_restore_process(void)
         if (lock_restore_mask & (1u << i))
         {
             laser_serial_ctrl(i, true);
-            /* lock 恢复属合法操作: 标记"曾经接通", 跳过带电插入检测,
-             * 避免慢速电流建立被误判为 LASER_HOTPLUG。 */
-            laser_was_connected_set(i);
             lock_restore_mask &= (uint8_t)~(1u << i);
             break;  /* 只开一路, 等 MOS 完成 */
         }
@@ -726,8 +748,10 @@ void lock_sw_read(void)
                 /* 全关激光 (对应 AT+LASER=ALL,OFF) */
                 laser_serial_ctrl_all(false);
 
-                /* 关机记忆: 保存"松开前快照"(可能为 0), 使重新上电能恢复关机前的三路状态 */
-                flash_save_laser_state(lock_saved_mask);
+                /* 关机记忆: 保存"松开前快照"(可能为 0), 使重新上电能恢复关机前的三路状态。
+                 * 延迟到 8.47kHz 拉低后落盘 (见 key_en_delay_task_1ms), 避免 flash
+                 * 擦写(BGO 禁用→CPU 暂停 20-30ms)冻结 GPT9 ISR 拉长 4ms 低相位 → 50% 冻结 */
+                lock_deferred_save = true;
 
                 /* 关 LED */
                 g_lock_led_override = 1;
@@ -735,8 +759,8 @@ void lock_sw_read(void)
                 led_all_on_ticks_10ms = 0;
                 led_set_pattern(LED_PATTERN_DEFAULT);
 
-                /* 进入 5s 挂起窗口前立即落盘统计, 防止窗口内拔电池丢失数据 */
-                flash_save_stats(stats_get_ptr());
+                /* 统计落盘同样延迟到 8.47kHz 拉低后 (见 key_en_delay_task_1ms),
+                 * 避免 flash 擦写冻结 ISR; 10ms 延迟仍在 5s 挂起窗口内, 不影响掉电保护 */
 
                 lock_off_ticks_10ms = 0;
                 g_lock_sw_state     = LOCK_WAIT_OFF;
@@ -761,6 +785,10 @@ void lock_sw_read(void)
 
                 /* 待恢复掩码: 快照非 0 用快照, 全 0 则默认开 H */
                 lock_restore_mask = (lock_saved_mask != 0U) ? lock_saved_mask : 0x01U;
+
+                /* lock 恢复: 重置恒高锁定, 使激光恢复后先 8.47kHz 恒高一段
+                 * (与第一次上电一致), 而非立马进入 0-4° 出现 4ms 低相位。 */
+                posture_hold_restart();
 
                 /* 恢复 LED: 先三颗全亮 (复现开机效果), 展示后按电量刷新 */
                 g_lock_led_override = 0;
