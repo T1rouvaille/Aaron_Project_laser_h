@@ -131,7 +131,7 @@ static void ntc_temp_protection_task(uint16_t ntc_adc)
 
     if (ntc_adc < NTC_OVERHEAT_THRESHOLD)
     {
-        /* 高温保护: NTC ADC < 670 → >80°C */
+        /* 高温保护: NTC ADC < 590 → >80°C */
         ntc_low_temp_cnt = 0;
         ntc_overheat_cnt++;
         if (ntc_overheat_cnt >= NTC_TEMP_CONFIRM_COUNT)
