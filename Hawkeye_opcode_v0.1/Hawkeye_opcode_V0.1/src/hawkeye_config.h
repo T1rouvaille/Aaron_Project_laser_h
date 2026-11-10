@@ -202,6 +202,7 @@
 #define CALIBRATION_VALID_COUNT (CALIBRATION_TRIALS - 2U * CALIBRATION_TRIM_SIDES) /* 中间有效样本数 = 16 */
 #define CALIBRATION_TIMEOUT_CNT (60U)      /* 校准总超时: 60 × 100ms = 6s, 超过判失败 */
 #define IMU_WARMUP_DISCARD      (10U)      /* 上电预热丢弃前 N 次采样, 等待 MEMS 稳定 */
+#define POWERON_HOLD_MS         (1400U)    /* 开机恒高锁定: 上电后 8.47kHz 恒高(不调制)持续时长, 消除冷/热启动时序差异 */
 
 /* Z 轴零偏额外补偿 (LSB): 在校准值 imu_offset[2] 基础上再减此值, 修正残留偏置 */
 #define IMU_Z_OFFSET_COMP       (0)

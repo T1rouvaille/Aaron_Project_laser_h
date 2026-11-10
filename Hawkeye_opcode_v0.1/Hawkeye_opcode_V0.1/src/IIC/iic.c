@@ -510,6 +510,17 @@ void posture_update(int16_t *acc)
 
     if (gAngleMode == ANGLE_MODE_OVERHEAT) return;  /* 高温期间禁止切换 */
 
+    /* 开机恒高锁定: 上电后固定时长内强制 UNCAL(8.47kHz 恒高、不调制),
+     * 消除冷/热启动 IMU 稳定速度差异导致的时序不一致。每 10ms 递减一次。
+     * static 局部变量随复位由启动代码重新初始化, 保证冷/热启动都从满值倒数。 */
+    static uint16_t poweron_hold_ticks = POWERON_HOLD_MS / 10U;
+    if (poweron_hold_ticks > 0U)
+    {
+        poweron_hold_ticks--;
+        gAngleMode = ANGLE_MODE_UNCAL;
+        return;
+    }
+
     if ((imu_offset[0] == 0) && (imu_offset[1] == 0) && (imu_offset[2] == 0))
     {
         gAngleMode = ANGLE_MODE_UNCAL;
