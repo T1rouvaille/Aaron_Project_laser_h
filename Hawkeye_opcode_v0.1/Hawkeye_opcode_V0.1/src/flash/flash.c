@@ -81,9 +81,14 @@ static fsp_err_t flash_buf_flush(void)
     /* Data Flash 擦写走 FSP r_flash_lp 的 FRDY 中断，无需禁中断/停 SysTick。
      * 若关中断会冻结 GPT9 1ms ISR，拉长 0-4° 采样低相位 → 激光闪。 */
     wdt_feed();  /* Flash擦除前喂狗, 防止WDT超时 */
+
+    /* RA2E1 Data Flash 硬件擦除块 = 1KB（BSP_FEATURE_FLASH_LP_DF_BLOCK_SIZE=0x400），
+     * num_blocks 参数按 1KB 计。384 字节布局（datalog 320 + devinfo 64）落在 Block 0
+     * (0x40100000..0x401003FF) 内，故只擦 1 块。切勿写 6（旧代码误按 64 字节/块，
+     * 实际擦 6KB 越界到 Data Flash 4KB 之外，并误擦 Block 1/2 备份区）。 */
     err = R_FLASH_LP_Erase(&g_flash0_ctrl,
                            FLASH_BLOCK_CALIBRATION,
-                           FLASH_TOTAL_BLOCKS);   /* 6 块一次擦除 */
+                           1U);                    /* 1 个 1KB 硬件块 (Block 0) */
 
     if (err == FSP_SUCCESS)
     {
@@ -95,6 +100,76 @@ static fsp_err_t flash_buf_flush(void)
     }
 
     return err;
+}
+
+/* ======================================================================
+ *  校准/参考电压 备份区（Block 1/2，A/B 双份冗余 + CRC16）
+ *
+ *  与 320 字节 datalog 完全独立，不破坏上位机布局。仅 APP 内部读写，
+ *  boot 'F' 与上位机 XML 均不触碰。
+ * ====================================================================== */
+
+/** CRC16-CCITT (poly 0x1021, init 0xFFFF) */
+static uint16_t flash_crc16_ccitt(const uint8_t *data, uint32_t len)
+{
+    uint16_t crc = 0xFFFFU;
+    for (uint32_t i = 0; i < len; i++)
+    {
+        crc ^= (uint16_t)data[i] << 8;
+        for (uint8_t b = 0; b < 8; b++)
+        {
+            crc = (crc & 0x8000U) ? (uint16_t)((crc << 1) ^ 0x1021U) : (uint16_t)(crc << 1);
+        }
+    }
+    return crc;
+}
+
+/** 读备份块并做 magic + CRC 校验，通过则拷贝到 out */
+static bool flash_backup_read_valid(uint32_t addr, flash_backup_t *out)
+{
+    const flash_backup_t *p = (const flash_backup_t *)addr;
+
+    if (p->magic != FLASH_BACKUP_MAGIC)
+        return false;
+
+    uint16_t crc = flash_crc16_ccitt((const uint8_t *)&p->calib_x, 14U);
+    if (crc != p->crc16)
+        return false;
+
+    memcpy(out, p, sizeof(*out));
+    return true;
+}
+
+/** 优先读 A，A 失效则读 B */
+static bool flash_backup_load(flash_backup_t *out)
+{
+    return flash_backup_read_valid(FLASH_BACKUP_A_ADDR, out) ||
+           flash_backup_read_valid(FLASH_BACKUP_B_ADDR, out);
+}
+
+/** 构造备份并写 A、B 两份（best-effort，失败不阻塞主流程） */
+static void flash_backup_save(int16_t ox, int16_t oy, int16_t oz,
+                              int32_t front, int32_t side, int32_t horiz)
+{
+    flash_backup_t bk;
+    memset(&bk, 0, sizeof(bk));
+    bk.magic   = FLASH_BACKUP_MAGIC;
+    bk.calib_x = ox;
+    bk.calib_y = oy;
+    bk.calib_z = oz;
+    bk.ref_h1  = (uint16_t)side;
+    bk.ref_h2  = 0U;
+    bk.ref_v1  = (uint16_t)horiz;
+    bk.ref_v2  = (uint16_t)front;
+    bk.crc16   = flash_crc16_ccitt((const uint8_t *)&bk.calib_x, 14U);
+
+    /* 先写 A 再写 B：写 A 断电时 B 仍保留上一版，反之亦然，双份互为冗余 */
+    wdt_feed();
+    R_FLASH_LP_Erase(&g_flash0_ctrl, FLASH_BACKUP_A_ADDR, 1U);
+    R_FLASH_LP_Write(&g_flash0_ctrl, (uint32_t)&bk, FLASH_BACKUP_A_ADDR, sizeof(bk));
+    wdt_feed();
+    R_FLASH_LP_Erase(&g_flash0_ctrl, FLASH_BACKUP_B_ADDR, 1U);
+    R_FLASH_LP_Write(&g_flash0_ctrl, (uint32_t)&bk, FLASH_BACKUP_B_ADDR, sizeof(bk));
 }
 
 /* ======================================================================
@@ -115,9 +190,13 @@ static void flash_buf_set_magic(void)
 
 /**
  * @brief 首次写 datalog 前的初始化：若魔数无效（新/已擦除），
- *        先清零整个 datalog 区域（0..319），使标准中 Hawkeye 未使用的
- *        字段保持 0（而非 0xFF）。同时保留校准请求 flag（@12..15），
- *        避免覆盖 UBOX 待处理的校准请求。
+ *        先清零 datalog 区域，使标准中 Hawkeye 未使用的字段保持 0（而非 0xFF）。
+ *        同时保留校准请求 flag（@12..15），避免覆盖 UBOX 待处理的校准请求。
+ *
+ * 校准/参考电压段 (256..281) 是否清零取决于备份区：
+ *  - 有有效备份：数据已冗余保存，主 datalog 该段不清零，防止魔数损坏时
+ *    开机 save 把校准/参考电压一并抹掉（load 会从备份恢复）。
+ *  - 无备份（全新 flash / 升级前旧数据）：保持原全清零行为，字段初始为 0。
  */
 static void flash_buf_prepare_datalog(void)
 {
@@ -125,7 +204,21 @@ static void flash_buf_prepare_datalog(void)
         return;   /* 已初始化，无需清零 */
 
     uint32_t calib_req = buf_r32(g_flash_buf, FLASH_OFFSET_CALIB_REQ);
-    memset(g_flash_buf, 0, FLASH_DATALOG_SIZE);
+
+    flash_backup_t bk;
+    if (flash_backup_load(&bk))
+    {
+        /* 有备份：保留校准/参考电压段 256..281，仅清零其余区域 */
+        memset(g_flash_buf, 0, FLASH_OFFSET_MEMS_X);                     /* 0..255 */
+        memset(g_flash_buf + FLASH_OFFSET_REF_BASE + 8U, 0,
+               FLASH_DATALOG_SIZE - (FLASH_OFFSET_REF_BASE + 8U));       /* 282..319 */
+    }
+    else
+    {
+        /* 无备份：保持原全清零行为 */
+        memset(g_flash_buf, 0, FLASH_DATALOG_SIZE);                      /* 0..319 */
+    }
+
     buf_w32(g_flash_buf, FLASH_OFFSET_CALIB_REQ, calib_req);
 
     /* Optical 段 (实测光功率) 首次初始化为 0 (未校准),
@@ -275,7 +368,15 @@ fsp_err_t flash_save_calibration(int16_t ox, int16_t oy, int16_t oz)
     /* 校准数据写入时同步清除 UBOX 的校准请求 flag (offset 12-15) */
     memset(g_flash_buf + FLASH_OFFSET_CALIB_REQ, 0xFF, 4U);
 
-    return flash_buf_flush();
+    fsp_err_t err = flash_buf_flush();
+
+    /* 主 datalog 落盘后，同步写备份区 A/B（校准用新值，参考电压用缓冲中的当前值） */
+    flash_backup_save(ox, oy, oz,
+                      (int32_t)buf_r16(g_flash_buf, FLASH_REF_V2),
+                      (int32_t)buf_r16(g_flash_buf, FLASH_REF_H1),
+                      (int32_t)buf_r16(g_flash_buf, FLASH_REF_V1));
+
+    return err;
 }
 
 fsp_err_t flash_save_mems_model(const char *model)
@@ -299,6 +400,17 @@ fsp_err_t flash_save_mems_model(const char *model)
 
 fsp_err_t flash_load_calibration(int16_t *ox, int16_t *oy, int16_t *oz)
 {
+    /* 优先读备份区（权威）：断电/魔数损坏导致主 datalog 校准丢失时自动恢复 */
+    flash_backup_t bk;
+    if (flash_backup_load(&bk))
+    {
+        *ox = bk.calib_x;
+        *oy = bk.calib_y;
+        *oz = bk.calib_z;
+        return FSP_SUCCESS;
+    }
+
+    /* 无有效备份（升级前旧数据）：回退主 datalog */
     if (!flash_datalog_valid())
         return FSP_ERR_NOT_INITIALIZED;
 
@@ -374,11 +486,30 @@ fsp_err_t flash_save_reference(int32_t front, int32_t side, int32_t horiz)
     buf_w16(g_flash_buf, FLASH_REF_V2, (uint16_t)front);  /* V2 ← ref_front */
     flash_buf_set_magic();
 
-    return flash_buf_flush();
+    fsp_err_t err = flash_buf_flush();
+
+    /* 主 datalog 落盘后，同步写备份区 A/B（参考电压用新值，校准用缓冲中的当前值） */
+    flash_backup_save((int16_t)buf_r16(g_flash_buf, FLASH_OFFSET_MEMS_X),
+                      (int16_t)buf_r16(g_flash_buf, FLASH_OFFSET_MEMS_Y),
+                      (int16_t)buf_r16(g_flash_buf, FLASH_OFFSET_MEMS_Z),
+                      front, side, horiz);
+
+    return err;
 }
 
 fsp_err_t flash_load_reference(int32_t *front, int32_t *side, int32_t *horiz)
 {
+    /* 优先读备份区（权威）：断电/魔数损坏导致主 datalog 参考电压丢失时自动恢复 */
+    flash_backup_t bk;
+    if (flash_backup_load(&bk))
+    {
+        *front = (int32_t)bk.ref_v2;   /* V2 ← ref_front */
+        *side  = (int32_t)bk.ref_h1;   /* H  ← ref_side  */
+        *horiz = (int32_t)bk.ref_v1;   /* V1 ← ref_horiz */
+        return FSP_SUCCESS;
+    }
+
+    /* 无有效备份（升级前旧数据）：回退主 datalog */
     if (!flash_datalog_valid())
         return FSP_ERR_NOT_INITIALIZED;
 
@@ -414,7 +545,16 @@ fsp_err_t flash_save_powcal_result(int32_t front, int32_t side, int32_t horiz,
     buf_w32(g_flash_buf, FLASH_OPT_V2, (uint32_t)v2);
 
     flash_buf_set_magic();
-    return flash_buf_flush();
+
+    fsp_err_t err = flash_buf_flush();
+
+    /* 主 datalog 落盘后，同步写备份区 A/B（参考电压用新值，校准用缓冲中的当前值） */
+    flash_backup_save((int16_t)buf_r16(g_flash_buf, FLASH_OFFSET_MEMS_X),
+                      (int16_t)buf_r16(g_flash_buf, FLASH_OFFSET_MEMS_Y),
+                      (int16_t)buf_r16(g_flash_buf, FLASH_OFFSET_MEMS_Z),
+                      front, side, horiz);
+
+    return err;
 }
 
 /* ======================================================================

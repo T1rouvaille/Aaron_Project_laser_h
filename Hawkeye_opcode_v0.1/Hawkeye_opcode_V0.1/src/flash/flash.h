@@ -51,12 +51,48 @@
 #define FLASH_OFFSET_DEVINFO     (FLASH_DATALOG_SIZE)                    /* 320, 块5 */
 
 /* ======================================================================
+ *  校准/参考电压 备份区（Data Flash Block 1/2，A/B 双份冗余）
+ *
+ *  RA2E1 Data Flash 共 4KB = 4 块 × 1KB（BSP_FEATURE_FLASH_LP_DF_BLOCK_SIZE=0x400）：
+ *    Block 0 (0x40100000) = datalog(320) + devinfo(64)，仅用前 384 字节
+ *    Block 1 (0x40100400) = 备份 A（校准 + 参考电压 + CRC16）
+ *    Block 2 (0x40100800) = 备份 B
+ *    Block 3 (0x40100C00) = 空闲
+ *
+ *  备份区与 320 字节 datalog 完全独立：boot 'F' 只读 Block 0 内 320 字节，
+ *  上位机 XML 也只看 320 字节，均不触碰 Block 1/2，故不破坏现有布局。
+ *
+ *  写策略：每次 flash_save_calibration / flash_save_reference /
+ *  flash_save_powcal_result 在主 datalog 落盘后，额外把"校准 X/Y/Z +
+ *  参考电压 4 路 + CRC16"写入 A、B 两份。
+ *  读策略：flash_load_calibration / flash_load_reference 优先读备份（权威），
+ *  备份失效才回退主 datalog，从而在断电/魔数损坏时自动恢复。
+ * ====================================================================== */
+#define FLASH_BACKUP_A_ADDR      (FLASH_DF_BASE_ADDR + 0x400U)           /* Block 1 */
+#define FLASH_BACKUP_B_ADDR      (FLASH_DF_BASE_ADDR + 0x800U)           /* Block 2 */
+
+/* 备份结构体（20 字节，4 字节对齐） */
+typedef struct
+{
+    uint32_t magic;      /* FLASH_BACKUP_MAGIC */
+    int16_t  calib_x;    /* MEMS 校准 X @256 */
+    int16_t  calib_y;    /* MEMS 校准 Y @258 */
+    int16_t  calib_z;    /* MEMS 校准 Z @260 */
+    uint16_t ref_h1;     /* H  ← ref_side   @274 */
+    uint16_t ref_h2;     /* 恒 0            @276 */
+    uint16_t ref_v1;     /* V1 ← ref_horiz  @278 */
+    uint16_t ref_v2;     /* V2 ← ref_front  @280 */
+    uint16_t crc16;      /* CRC16-CCITT 覆盖 calib_x..ref_v2 共 14 字节 */
+} flash_backup_t;
+
+/* ======================================================================
  *  魔数
  * ====================================================================== */
 #define FLASH_DATALOG_MAGIC      (0xA5A5A5A5U)   /* 平台 datalog 头部格式标识 (offset 0) */
 #define FLASH_STATS_MAGIC        (0xB6B6B6B6U)   /* RAM 累加器有效标识 */
 #define FLASH_POWEROFF_MAGIC     (0xC3C3C3C3U)   /* 关机日志有效标识 (RAM) */
 #define FLASH_DEVINFO_MAGIC      (0xD4D4D4D4U)   /* 设备信息有效标识 */
+#define FLASH_BACKUP_MAGIC       (0xBA11BEEFU)   /* 校准/参考电压备份区有效标识 */
 
 /* ======================================================================
  *  校准请求 flag (offset 12, 4 bytes) — 固定不可移动
