@@ -561,7 +561,10 @@ void posture_update(int16_t *acc)
         return;
     }
 
-    if ((imu_offset[0] == 0) && (imu_offset[1] == 0) && (imu_offset[2] == 0))
+    /* 未校准检测：offset 全 0（未写入）或全 -1（0xFFFF, Data Flash 擦除态）都视为未校准。
+     * 否则未校准机器会误入角度模式(0_4/4_10)三路激光全亮, 存在烧管风险。 */
+    if (((imu_offset[0] == 0) && (imu_offset[1] == 0) && (imu_offset[2] == 0)) ||
+        ((imu_offset[0] == -1) && (imu_offset[1] == -1) && (imu_offset[2] == -1)))
     {
         gAngleMode = ANGLE_MODE_UNCAL;
         return;
