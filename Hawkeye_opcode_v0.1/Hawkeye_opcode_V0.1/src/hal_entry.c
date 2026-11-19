@@ -36,7 +36,7 @@ void HardFault_Handler(void)
 
 static uint32_t no_laser_idle_s = 0U;
 static uint16_t g_calib_fail_cnt = 0;       /* 校准期间连续 I2C 读取失败计数 */
-static uint16_t g_calib_timeout_cnt = 0;    /* 校准总超时计数 (80ms/次), 6s 未完成判失败 */
+static uint16_t g_calib_timeout_cnt = 0;    /* 校准总超时计数 (50ms/次), 6s 未完成判失败 */
 
 static int16_t acc[3];
 
@@ -261,7 +261,7 @@ static void imu_calib_posture_task(void)
             g_calib_fail_cnt = 0;
         }
 
-        /* 总体超时保护: 闪烁开始后每 80ms 递增, 6s 内未采满 32 次判失败,
+        /* 总体超时保护: 闪烁开始后每 50ms 递增, 6s 内未采满 32 次判失败,
          * 安全关激光(停闪 + EN1 断 + Flash 回写 0)避免无限闪烁烧管 */
         if (g_calib_laser_flash)
         {
@@ -350,7 +350,7 @@ static void imu_calib_posture_task(void)
 
             if (g_imu_debug_enabled)
             {
-                /* AT+IMUDBG=1: 每 100ms 打印原始/校准后加速度 + 角度模式 */
+                /* AT+IMUDBG=1: 每 50ms 打印原始/校准后加速度 + 角度模式 */
                 char msg[96];
                 sprintf(msg, "+IMU:RAW=%d,%d,%d CAL=%d,%d,%d MODE=%d\r\n",
                         raw_x, raw_y, raw_z,
@@ -460,13 +460,13 @@ void hal_entry(void)
      *  idx  period  offset  用途
      *   0     10      0     按键扫描
      *   1     20      5     电源监控
-     *   2     50     15     串口 + 电池
-     *   3    100     30     MEMS + 姿态
+     *   2     50     15     串口 + 电池电压 (相位 35ms)
+     *   3     50     40     MEMS/姿态 + 电池NTC 100ms (相位 10ms)
      *   4    500     40     低频任务
      *   5   1000     50     运行统计
      */
-    static const uint16_t PERIOD[] = { 10,  20,  50, 100,  500, 1000 };
-    static       uint16_t CNT[]    = {  0,   5,  15,  30,   40,   50 };
+    static const uint16_t PERIOD[] = { 10,  20,  50,  50,  500, 1000 };
+    static       uint16_t CNT[]    = {  0,   5,  15,  40,   40,   50 };
 
     /* I2C + IMU 初始化 (自动检测 IIM42351/ICM40608) */
     i2c_master_init();
@@ -576,13 +576,21 @@ void hal_entry(void)
                 ntc_temp_protection_task(Read_ADC_Voltage_Value_NTC());
             }
 
-            /* ---- 50ms 任务: 串口 + 电池 ---- */
+            /* ---- 50ms 槽A (相位35ms): 串口 + 电池电压 ---- */
             if (++CNT[2] >= PERIOD[2])
             {
                 wdt_feed();
                 CNT[2] = 0;
                 Debug_UART9_ProcessReceivedData();
                 battery_voltage_task();
+            }
+
+            /* ---- 50ms 槽B (相位10ms): MEMS/姿态 + 电池NTC ---- */
+            if (++CNT[3] >= PERIOD[3])
+            {
+                wdt_feed();
+                CNT[3] = 0;
+                imu_calib_posture_task();
 
                 /* 电池 NTC 检测: 每 100ms (2×50ms) 一次 */
                 static uint16_t bat_ntc_100ms_cnt = 0;
@@ -591,14 +599,6 @@ void hal_entry(void)
                     bat_ntc_100ms_cnt = 0;
                     battery_temp_check();
                 }
-            }
-
-            /* ---- 100ms 任务: MEMS + 姿态 ---- */
-            if (++CNT[3] >= PERIOD[3])
-            {
-                wdt_feed();
-                CNT[3] = 0;
-                imu_calib_posture_task();
             }
 
             /* ---- 500ms 任务: 电池 LED ---- */

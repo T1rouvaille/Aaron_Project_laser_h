@@ -48,9 +48,18 @@ volatile angle_mode_t gAngleMode = ANGLE_MODE_UNCAL;
 #define LSM6DSO_CTRL6_C          0x15   /* 加速度计功耗模式: XL_HM_MODE */
 #define LSM6DSO_OUTX_L_A         0x28   /* 加速度 X 低字节 (Little Endian) */
 
-/* LSM6DSOTR CTRL1_XL 配置位 */
+/* LSM6DSOTR CTRL1_XL 配置位 (ODR_XL[3:0], 高性能模式 XL_HM_MODE=0) */
+#define LSM6DSO_ODR_POWER_DOWN   0x00   /* 下电 */
 #define LSM6DSO_ODR_12_5HZ       0x10   /* 12.5 Hz (与 IIM42351 低频一致) */
+#define LSM6DSO_ODR_26HZ         0x20   /* 26 Hz  */
 #define LSM6DSO_ODR_52HZ         0x30   /* 52 Hz  (最接近 IIM42351 50Hz) */
+#define LSM6DSO_ODR_104HZ        0x40   /* 104 Hz */
+#define LSM6DSO_ODR_208HZ        0x50   /* 208 Hz */
+#define LSM6DSO_ODR_416HZ        0x60   /* 416 Hz */
+#define LSM6DSO_ODR_833HZ        0x70   /* 833 Hz */
+#define LSM6DSO_ODR_1_66KHZ      0x80   /* 1.66 kHz */
+#define LSM6DSO_ODR_3_33KHZ      0x90   /* 3.33 kHz */
+#define LSM6DSO_ODR_6_66KHZ      0xA0   /* 6.66 kHz */
 #define LSM6DSO_FS_XL_2G         0x00   /* ±2g */
 
 /* LSM6DSOTR CTRL3_C 配置: 使能 BDU (Block Data Update) */
@@ -507,17 +516,36 @@ void IIM42351_calibration(void)
 
 /* 开机/lock 恢复恒高锁定计数: 上电或 lock 重新合上后固定时长内强制 UNCAL
  * (8.47kHz 恒高、不调制 → 无 4ms 低相位), 用作 IMU 稳定缓冲 / 激光预热缓冲。
- * posture_update 由主循环 100ms 槽(imu_calib_posture_task)调用, 每 100ms 递减一次。
+ * posture_update 由主循环 50ms 槽(imu_calib_posture_task)调用, 每 50ms 递减一次。
  * 文件级 static: 复位由启动代码置满值; lock 恢复由 posture_hold_restart() 重新置满值。 */
-static uint16_t poweron_hold_ticks = POWERON_HOLD_MS / 100U;
+static uint16_t poweron_hold_ticks = POWERON_HOLD_MS / 50U;
 
 void posture_hold_restart(void)
 {
-    poweron_hold_ticks = POWERON_HOLD_MS / 100U;
-    /* 立即强制 UNCAL(恒高): poweron_hold_ticks 要等下一个 100ms 槽
+    poweron_hold_ticks = POWERON_HOLD_MS / 50U;
+    /* 立即强制 UNCAL(恒高): poweron_hold_ticks 要等下一个 50ms 槽
      * (posture_update) 才生效, 若此刻 gAngleMode 仍是 0-4°, 激光恢复后
      * 会先输出几个 4ms 低相位; 这里直接拉高, 消除窗口期残留 4ms。 */
     gAngleMode = ANGLE_MODE_UNCAL;
+}
+
+/* ===== YZ 倾角滑动平均 (抗抖动) =====
+ * 仅对 YZ_angle(倾斜量值) 做 POSTURE_MA_WINDOW 样本滑动平均,
+ * x 轴倒置判定(isUpright = x_val > 0) 用原始值即时判断, 不做平均:
+ * 倒置是激光安全边界, 必须立即响应, 不能被滑动平均拖慢。 */
+static int32_t posture_ma_buf[POSTURE_MA_WINDOW];
+static uint8_t posture_ma_idx  = 0;
+static uint8_t posture_ma_fill = 0;
+static int32_t posture_ma_sum  = 0;
+
+static int32_t posture_ma_filter(int32_t sample)
+{
+    posture_ma_sum += sample - posture_ma_buf[posture_ma_idx];
+    posture_ma_buf[posture_ma_idx] = sample;
+    posture_ma_idx = (uint8_t)((posture_ma_idx + 1) % POSTURE_MA_WINDOW);
+    if (posture_ma_fill < POSTURE_MA_WINDOW)
+        posture_ma_fill++;
+    return posture_ma_sum / (int32_t)posture_ma_fill;
 }
 
 void posture_update(int16_t *acc)
@@ -548,7 +576,7 @@ void posture_update(int16_t *acc)
 
     unsigned int isUpright = (x_val > 0) ? 1U : 0U;
 
-    int32_t YZ_angle = (y_val > z_val) ? y_val : z_val;
+    int32_t YZ_angle = posture_ma_filter((y_val > z_val) ? y_val : z_val);
 
     angle_mode_t targetMode = gAngleMode;  // 目标模式
 
@@ -639,20 +667,19 @@ void posture_update(int16_t *acc)
         {
             // 和上次的待切换模式一�?计数�?1
             mode_change_counter++;
-
-            if (mode_change_counter >= MODE_CHANGE_THRESHOLD)
-            {
-                // 达到阈�?真正切换模式
-                gAngleMode = targetMode;
-                mode_change_counter = 0;
-
-            }
         }
         else
         {
             // 目标模式又变�?重新开始计�?
             gPendingMode = targetMode;
             mode_change_counter = 1;
+        }
+
+        if (mode_change_counter >= MODE_CHANGE_THRESHOLD)
+        {
+            // 达到阈值, 真正切换模式
+            gAngleMode = targetMode;
+            mode_change_counter = 0;
         }
     }
     else
