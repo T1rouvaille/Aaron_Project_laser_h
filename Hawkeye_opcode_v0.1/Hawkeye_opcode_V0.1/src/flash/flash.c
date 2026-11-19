@@ -172,6 +172,44 @@ static void flash_backup_save(int16_t ox, int16_t oy, int16_t oz,
     R_FLASH_LP_Write(&g_flash0_ctrl, (uint32_t)&bk, FLASH_BACKUP_B_ADDR, sizeof(bk));
 }
 
+/**
+ * @brief 备份区兜底写（开机/心跳/关机调用）。
+ *
+ *  备份区是"权威"：只在 flash_save_calibration/reference/powcal_result 时与
+ *  主 datalog 一起更新，永远是最新且有效的。因此：
+ *   - 备份区有效（magic + CRC 通过）→ 什么都不做，保留权威值。
+ *     不能拿主 datalog 覆盖它：主 datalog 若因断电损坏成 0xFFFF，会把好的
+ *     备份污染掉。
+ *   - 备份区无效（擦除态/损坏）→ 用主 datalog 的值兜底写一份；其中
+ *     0xFFFF（擦除态/未初始化）归一化为 0（未校准/未光功率调节的初始默认值），
+ *     首启即在此写 0 而非 0xFFFF。
+ */
+static void flash_backup_save_from_buf(void)
+{
+    flash_backup_t bk;
+    if (flash_backup_load(&bk))
+        return;   /* 备份区已有效，保留权威值 */
+
+    uint16_t ux = buf_r16(g_flash_buf, FLASH_OFFSET_MEMS_X);
+    uint16_t uy = buf_r16(g_flash_buf, FLASH_OFFSET_MEMS_Y);
+    uint16_t uz = buf_r16(g_flash_buf, FLASH_OFFSET_MEMS_Z);
+    uint16_t h1 = buf_r16(g_flash_buf, FLASH_REF_H1);
+    uint16_t v1 = buf_r16(g_flash_buf, FLASH_REF_V1);
+    uint16_t v2 = buf_r16(g_flash_buf, FLASH_REF_V2);
+
+    /* 0xFFFF = 擦除态/未初始化 → 归一化为 0（未校准的初始默认值） */
+    if (ux == 0xFFFFU) ux = 0U;
+    if (uy == 0xFFFFU) uy = 0U;
+    if (uz == 0xFFFFU) uz = 0U;
+    if (h1 == 0xFFFFU) h1 = 0U;
+    if (v1 == 0xFFFFU) v1 = 0U;
+    if (v2 == 0xFFFFU) v2 = 0U;
+
+    /* 参数顺序: ox, oy, oz, front(ref_v2), side(ref_h1), horiz(ref_v1) */
+    flash_backup_save((int16_t)ux, (int16_t)uy, (int16_t)uz,
+                      (int32_t)v2, (int32_t)h1, (int32_t)v1);
+}
+
 /* ======================================================================
  *  内部辅助：datalog 头部校验 / 魔数 / 首次初始化
  * ====================================================================== */
@@ -655,7 +693,14 @@ fsp_err_t flash_save_stats(const flash_stats_t *stats)
     flash_scatter_stats(g_flash_buf, stats);
     flash_buf_set_magic();
 
-    return flash_buf_flush();
+    fsp_err_t err = flash_buf_flush();
+
+    /* 心跳保存也刷新备份区 7 字段（哪怕 0），主 datalog 校准/参考段
+     * 损坏成 0xFFFF 时，下次开机可从备份区读到有效值兜底。 */
+    if (err == FSP_SUCCESS)
+        flash_backup_save_from_buf();
+
+    return err;
 }
 
 fsp_err_t flash_clear_stats(void)
@@ -707,7 +752,13 @@ fsp_err_t flash_save_poweroff_and_stats(uint32_t reason,
         flash_scatter_stats(g_flash_buf, stats);
 
     flash_buf_set_magic();
-    return flash_buf_flush();
+    fsp_err_t err = flash_buf_flush();
+
+    /* 关机保存同样刷新备份区 7 字段（哪怕 0）兜底 */
+    if (err == FSP_SUCCESS)
+        flash_backup_save_from_buf();
+
+    return err;
 }
 
 /* ======================================================================
@@ -813,7 +864,15 @@ fsp_err_t flash_save_rev_info(void)
     g_flash_buf[FLASH_OFFSET_HWREV + 1U]  = (uint8_t)HAWKEYE_HW_REVISION_STR[0]; /* 'A' 高字节 */
 
     flash_buf_set_magic();
-    return flash_buf_flush();
+    fsp_err_t err = flash_buf_flush();
+
+    /* 每次开机（含首启）兜底写备份区 7 字段：首启必然未校准/未光功率调节，
+     * 字段为 0，立即把 0 写进备份区（而非擦除态 0xFFFF）。之后主 datalog
+     * 校准/参考段若损坏成 0xFFFF，下次开机 load 可从备份区读到 0 兜底。 */
+    if (err == FSP_SUCCESS)
+        flash_backup_save_from_buf();
+
+    return err;
 }
 
 /* ======================================================================
