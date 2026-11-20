@@ -166,8 +166,8 @@
 #define LASER_CLOSE_ESTABLISH_CYCLES (10U)
 
 /* 电流超限消抖确认次数 — laser_adjust_duty() 每轮调光调用一次
- *  连续 5 次超过限流才锁存恒流模式，防止上电暂态尖峰误触发 */
-#define CURRENT_LIMIT_CONFIRM_COUNT  (5U)
+ *  连续 4 次超过限流才锁存恒流模式，防止上电暂态尖峰误触发 */
+#define CURRENT_LIMIT_CONFIRM_COUNT  (4U)
 
 /* 各通道限流阈值 (mA)，超过后触发恒流保护 */
 #define CURRENT_LIMIT_V2_MA    (260U)   /* V2(FRONT) 限流 280mA */
