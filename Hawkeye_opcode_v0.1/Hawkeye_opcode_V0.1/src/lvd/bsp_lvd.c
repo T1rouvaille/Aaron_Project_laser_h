@@ -13,9 +13,9 @@
  *
  *  原理：RA2E1 的 LVD1（电压监测1）监测 VCC(3.3V 轨)。拔电池后 BUCK 停止，
  *        3.3V 轨靠电容放电，跌到阈值(~2.90V)时 LVD1 触发 NMI（非屏蔽中断）。
- *        NMI 回调里先砍掉激光/LED 负载（把 ~100mA 降到 ~15mA，大幅延长
- *        放电时间），再调用 flash_save_stats() 写回统计，最后电压继续掉到
- *        POR 复位。RA2E1 Data Flash 最低擦写电压 1.8V，抢救窗口充足。
+ *        NMI 回调里砍掉激光/LED 负载（把 ~100mA 降到 ~15mA，大幅延长
+ *        放电时间）保护激光管。注意：掉电斜坡上不写 flash（写一半电压跌破
+ *        1.8V 会损坏主 datalog 成 0xFFFF），统计由心跳 + 关机路径落盘。
  *
  *  LVD1 走 NMI 路径（非普通外设 IRQ），FSP 已实现 NMI_Handler 分发：
  *    R_BSP_GroupIrqWrite(BSP_GRP_IRQ_LVD1, cb) 注册回调
@@ -26,8 +26,6 @@
 #include "hal_data.h"
 #include "led/bsp_led.h"
 #include "timer_pwm.h"
-#include "flash/flash.h"
-#include "stats/bsp_stats.h"
 #include "lvd/bsp_lvd.h"
 
 /* ======================================================================
@@ -50,7 +48,7 @@
 #define LVD1CR0_RSV_BIT3     (0x08u)
 
 /* ======================================================================
- *  NMI 回调：砍负载 → 写统计
+ *  NMI 回调：砍负载
  * ====================================================================== */
 
 /**
@@ -75,8 +73,8 @@ static void lvd1_powerloss_cb(bsp_grp_irq_t irq)
     LED2_OFF;
     LED3_OFF;
 
-    /* 2. 只存统计，不记关机原因（按需求决定，避免改动关机日志语义）。 */
-    flash_save_stats(stats_get_ptr());
+    /* 2. 掉电斜坡上不写 flash：写一半电压跌破 1.8V 会损坏主 datalog(0xFFFF)。
+     *    统计由 30min 心跳 + 正常关机路径落盘，此处仅砍负载保护激光管。 */
 }
 
 /* ======================================================================
