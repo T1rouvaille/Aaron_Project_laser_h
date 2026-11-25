@@ -82,6 +82,7 @@ typedef enum
     CMD_POWTARGET,          /* AT+POWTARGET=<H|V1|V2>,<power_x100> 或 AT+POWTARGET? */
     CMD_LASER_CTRL,         /* AT+LASER=<CH>,<ON|OFF> */
     CMD_IMU_DEBUG,          /* AT+IMUDBG=<0|1> IMU角度实时打印开关 */
+    CMD_GET_CHIPID,         /* AT+CHIPID — 读取 MCU 唯一 ID (96-bit) */
     CMD_FW_UPDATE,          /* 5 — 进入固件更新模式 */
 } uart_cmd_t;
 
@@ -134,6 +135,7 @@ static uart_cmd_t get_uart_cmd(char * str)
     if (strcmp(str, "AT+POWTARGET?") == 0)    return CMD_POWTARGET;
     if (strncmp(str, "AT+LASER=", 9) == 0)    return CMD_LASER_CTRL;
     if (strncmp(str, "AT+IMUDBG=", 10) == 0)  return CMD_IMU_DEBUG;
+    if (strcmp(str, "AT+CHIPID") == 0)       return CMD_GET_CHIPID;
     if (strcmp(str, "5") == 0)                    return CMD_FW_UPDATE;
     return CMD_NONE;
 }
@@ -528,6 +530,22 @@ void Debug_UART9_ProcessReceivedData(void)
             {
                 uart9_send_blocking("+RESP:ERR\r\n");
             }
+        }
+        break;
+
+        case CMD_GET_CHIPID:
+        {
+            char msg[64];
+            const bsp_unique_id_t *uid = R_BSP_UniqueIdGet();
+            snprintf(msg, sizeof(msg),
+                     "+RESP:CHIPID=%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\r\n",
+                     uid->unique_id_bytes[0],  uid->unique_id_bytes[1],
+                     uid->unique_id_bytes[2],  uid->unique_id_bytes[3],
+                     uid->unique_id_bytes[4],  uid->unique_id_bytes[5],
+                     uid->unique_id_bytes[6],  uid->unique_id_bytes[7],
+                     uid->unique_id_bytes[8],  uid->unique_id_bytes[9],
+                     uid->unique_id_bytes[10], uid->unique_id_bytes[11]);
+            uart9_send_blocking(msg);
         }
         break;
 
