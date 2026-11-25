@@ -213,8 +213,6 @@ void laser_adjust_duty(int avg_pd,
     if (laser_safety_hotplug_check(laser_idx, avg_pd, current_mA) == LASER_SAFETY_SKIP)
         return;
 
-    if (reference <= 0) return;
-
     /* 低温模式: 同步缩放PID目标, 使PD收敛到更低的光功率 */
     if (g_ntc_low_temp)
     {
@@ -344,6 +342,10 @@ void laser_adjust_duty(int avg_pd,
         }
         return;  /* 恒流模式处理完毕，永不跌落到恒压PID */
     }
+
+    /* 未校准(reference<=0): 不跑恒压PID(duty 保持当前值)，
+     * 但上面的恒流限流保护已生效，防止固定 duty 下过流烧管。 */
+    if (reference <= 0) return;
 
     /* ==========================================================
      * 恒压模式：光功率PID（以 avg_pd 跟踪 reference）
