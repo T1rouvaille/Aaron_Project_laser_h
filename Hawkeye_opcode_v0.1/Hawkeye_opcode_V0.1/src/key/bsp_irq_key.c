@@ -749,18 +749,26 @@ void lock_sw_read(void)
                 laser_serial_ctrl_all(false);
 
                 /* 关机记忆: 保存"松开前快照"(可能为 0), 使重新上电能恢复关机前的三路状态。
-                 * 延迟到 8.47kHz 拉低后落盘 (见 key_en_delay_task_1ms), 避免 flash
-                 * 擦写(BGO 禁用→CPU 暂停 20-30ms)冻结 GPT9 ISR 拉长 4ms 低相位 → 50% 冻结 */
-                lock_deferred_save = true;
+                 * - 松 lock 时还有激光在跑: 延迟到 8.47kHz 拉低后落盘 (见 key_en_delay_task_1ms),
+                 *   避免 flash 擦写(BGO 禁用→CPU 暂停 20-30ms)冻结 GPT9 ISR 拉长 4ms 低相位 → 50% 冻结。
+                 * - 松 lock 时三条已全关(快照=0): 此时无激光在跑, flash 擦写无副作用, 直接落盘。
+                 *   否则 deferred 依赖的 MOS_WAIT_PWM_THEN_OFF 不会发生(laser_serial_ctrl_all
+                 *   因 laser_on_count()==0 提前返回), 0 永远写不进 flash → 重上电恢复三条全开。 */
+                if (lock_saved_mask == 0U)
+                {
+                    flash_save_laser_state(0);
+                    flash_save_stats(stats_get_ptr());
+                }
+                else
+                {
+                    lock_deferred_save = true;
+                }
 
                 /* 关 LED */
                 g_lock_led_override = 1;
                 g_led_show_all = 0;         /* 取消任何未完成的全亮展示 */
                 led_all_on_ticks_10ms = 0;
                 led_set_pattern(LED_PATTERN_DEFAULT);
-
-                /* 统计落盘同样延迟到 8.47kHz 拉低后 (见 key_en_delay_task_1ms),
-                 * 避免 flash 擦写冻结 ISR; 10ms 延迟仍在 5s 挂起窗口内, 不影响掉电保护 */
 
                 lock_off_ticks_10ms = 0;
                 g_lock_sw_state     = LOCK_WAIT_OFF;
